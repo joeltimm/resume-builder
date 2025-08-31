@@ -1,0 +1,129 @@
+AI Resume Builder: Project Blueprint
+This document outlines a plan to build an AI-powered resume builder that matches your skills and accomplishments to a job description.
+
+1. High-Level Goal
+Create a web application where a user can:
+
+Input a job description.
+
+Receive an AI-generated list of their most relevant skills and accomplishments.
+
+Manage a personal database of all their skills and accomplishments.
+
+Review and edit the AI's suggestions.
+
+Export the final, tailored resume as a PDF.
+
+2. Recommended Technology Stack
+Here’s a simple but powerful stack using technologies you're familiar with and that are well-suited for a beginner.
+
+Component
+
+Technology
+
+Why it's a good choice
+
+Backend
+
+Flask (Python)
+
+Flask is a "micro" web framework for Python. It's perfect for beginners because it's simple, flexible, and doesn't force a lot of structure on you. You can start with a single file and grow from there. You'll use it to create an API that your frontend can talk to.
+
+Frontend
+
+HTML, Tailwind CSS, & JavaScript
+
+Vanilla JS (plain JavaScript) is all you need to handle user interactions like button clicks and sending data to your Flask backend. Tailwind CSS is a utility-first CSS framework that lets you build modern-looking designs directly in your HTML, which is much faster than writing custom CSS from scratch.
+
+Database
+
+SQLite
+
+SQLite is a simple, serverless database that's included with Python. Your entire database is just a single file in your project folder. It's extremely easy to set up and is more than powerful enough for this project. You'll use it to store your skills and accomplishments.
+
+AI Matching
+
+Sentence-Transformers (Python)
+
+This is the core of the AI. Sentence-Transformers is a Python library that converts text into numerical representations called "embeddings." The key idea is that similar texts will have similar numbers. You can then use a simple math formula (cosine similarity) to find the most similar items in your database to the job description. It's surprisingly easy to use and very powerful.
+
+PDF Generation
+
+Stirling-PDF
+
+As you mentioned, Stirling-PDF is an excellent choice. Since you already have Docker running on your Linux server, you can host this tool yourself. It provides an API that you can call from your Flask backend to convert your final resume (which you can format as HTML) into a polished PDF.
+
+3. Step-by-Step Implementation Plan
+Follow these steps to build your application progressively.
+
+Step 1: Backend Setup & Database Management
+Goal: Create the Flask app and the UI to add, view, and delete your skills and accomplishments.
+
+Actions:
+
+Set up a new Flask project.
+
+Define your SQLite database schema (e.g., a skills table and an accomplishments table).
+
+Create Flask API endpoints for:
+
+POST /skills (add a new skill)
+
+GET /skills (get all skills)
+
+DELETE /skills/<id> (delete a skill)
+
+(Repeat for accomplishments).
+
+Build the "Manage My Data" section of the frontend UI to interact with these endpoints.
+
+Step 2: Implement the AI Matching Logic
+Goal: Add the AI functionality that takes a job description and finds the best matches.
+
+Actions:
+
+Install the sentence-transformers library (pip install -U sentence-transformers).
+
+When a skill or accomplishment is saved to the database, also generate its vector embedding using a pre-trained model (like 'all-MiniLM-L6-v2') and save it in a separate column.
+
+Create a new Flask endpoint, e.g., POST /match.
+
+This endpoint will:
+
+Accept a job description in the request.
+
+Generate an embedding for the job description.
+
+Compare this embedding against all the embeddings in your database using cosine similarity.
+
+Return a sorted list of the top N most relevant skills and accomplishments.
+
+Step 3: Build the Main Resume Builder UI
+Goal: Connect the main UI to the AI backend.
+
+Actions:
+
+In the frontend, when the "Generate" button is clicked, send the job description text to your /match endpoint.
+
+When the frontend receives the list of matches, dynamically display them in the "Review Selections" section with checkboxes.
+
+Step 4: PDF Export Integration
+Goal: Allow the user to export their reviewed selections as a PDF.
+
+Actions:
+
+Deploy Stirling-PDF in a Docker container on your Linux server.
+
+Create a final Flask endpoint, e.g., POST /export-pdf.
+
+This endpoint will:
+
+Receive the final, user-approved list of skills and accomplishments.
+
+Format this data into a clean HTML resume template.
+
+Make an API call to your Stirling-PDF instance, sending the HTML.
+
+Return the generated PDF file to the user for download.
+
+This structured approach lets you build and test each part of your application one at a time, which is a much more manageable way to tackle a project.
