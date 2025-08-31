@@ -1,0 +1,39 @@
+services:
+  backend:
+    # This tells Docker to build an image from the Dockerfile in the './backend' directory.
+    build: ./backend
+    restart: always
+    # This links the .env file into the container, so our Python app can read it.
+    env_file:
+      - .env
+    # This is the 'ports' section for the backend service. It maps port 5001 on
+    # your server (the host) to port 5001 inside the container.
+    ports:
+      - "5031:5001"
+    # This tells Docker not to start the 'backend' service until the 'postgres'
+    # service is healthy and ready to accept connections.
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD:  ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+# This top-level 'volumes' section formally defines the named volume we used above.
+# This makes it easier to manage with docker commands.
+volumes:
+  postgres_data:

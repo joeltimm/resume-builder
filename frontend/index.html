@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Builder</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for a professional look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Use the Inter font family */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Simple animation for UI feedback */
+        @keyframes flash {
+            0% { background-color: #4f46e5; }
+            100% { background-color: #16a34a; }
+        }
+        .flash-success {
+            animation: flash 0.5s ease-out;
+        }
+        /* Prevent content from breaking out of its container in the preview */
+        .preview-content {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 lg:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Resume Builder</h1>
+            <p class="text-lg text-gray-600 mt-2">Fill in the details below and see your resume update in real-time.</p>
+        </header>
+
+        <!-- Main content area with form and preview -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- Left Column: Form Inputs -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-2">Your Information</h2>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap gap-2 mb-6">
+                    <!-- The save button now calls the API -->
+                    <button id="save-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Save to Database</button>
+                    <span id="feedback-msg" class="ml-4 self-center text-green-600 font-medium"></span>
+                </div>
+                
+                <!-- Personal Details Section -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-semibold text-gray-700">Personal Details</h3>
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                        <input type="text" id="name" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="email" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                     <div>
+                        <label for="phone" class="block text-sm font-medium text-gray-700">Phone</label>
+                        <input type="tel" id="phone" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="linkedin" class="block text-sm font-medium text-gray-700">LinkedIn Profile URL</label>
+                        <input type="url" id="linkedin" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="github" class="block text-sm font-medium text-gray-700">GitHub Profile URL</label>
+                        <input type="url" id="github" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="summary" class="block text-sm font-medium text-gray-700">Professional Summary</label>
+                        <textarea id="summary" rows="4" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </div>
+                </div>
+
+                <!-- Work Experience Section -->
+                <div class="mt-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700">Work Experience</h3>
+                        <button id="add-experience-btn" class="bg-green-500 text-white font-bold py-1 px-3 rounded-lg hover:bg-green-600 transition-colors text-sm">+ Add</button>
+                    </div>
+                    <div id="experience-container" class="space-y-6">
+                        <!-- Experience items will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Resume Preview -->
+            <div id="resume-preview-container" class="bg-white p-8 rounded-lg shadow-lg">
+                 <!-- The content here is generated by JavaScript -->
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Configuration ---
+            const API_URL = 'http://100.120.237.30:5031/api/resume';
+
+            // --- DOM Element References ---
+            const nameInput = document.getElementById('name');
+            const emailInput = document.getElementById('email');
+            const phoneInput = document.getElementById('phone');
+            const linkedinInput = document.getElementById('linkedin');
+            const githubInput = document.getElementById('github');
+            const summaryInput = document.getElementById('summary');
+            
+            const addExperienceBtn = document.getElementById('add-experience-btn');
+            const experienceContainer = document.getElementById('experience-container');
+            const resumePreviewContainer = document.getElementById('resume-preview-container');
+
+            const saveBtn = document.getElementById('save-btn');
+            const feedbackMsg = document.getElementById('feedback-msg');
+
+            // --- Core Functions ---
+
+            function collectFormData() {
+                const experienceEntries = [];
+                document.querySelectorAll('.experience-item').forEach(item => {
+                    experienceEntries.push({
+                        jobTitle: item.querySelector('.job-title').value,
+                        company: item.querySelector('.company').value,
+                        location: item.querySelector('.location').value,
+                        dates: item.querySelector('.dates').value,
+                        description: item.querySelector('.description').value,
+                    });
+                });
+
+                return {
+                    name: nameInput.value,
+                    email: emailInput.value,
+                    phone: phoneInput.value,
+                    linkedin: linkedinInput.value,
+                    github: githubInput.value,
+                    summary: summaryInput.value,
+                    experience: experienceEntries
+                };
+            }
+
+            /**
+             * Saves the form data by sending it to the backend API.
+             */
+            async function saveData() {
+                const data = collectFormData();
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data),
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    console.log(result.message); // "Resume saved successfully"
+
+                    feedbackMsg.textContent = 'Data Saved!';
+                    saveBtn.classList.add('flash-success');
+                    setTimeout(() => {
+                        feedbackMsg.textContent = '';
+                        saveBtn.classList.remove('flash-success');
+                    }, 1500);
+
+                } catch (error) {
+                    console.error('Error saving data:', error);
+                    let userMessage = 'Error: Could not save data.';
+                    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+                        userMessage += ' This is often a network or CORS issue. Please ensure the backend server is running and accessible.';
+                    }
+                    feedbackMsg.textContent = userMessage;
+                    setTimeout(() => feedbackMsg.textContent = '', 4000);
+                }
+            }
+            
+            /**
+             * Loads data from the backend API and populates the form.
+             */
+            async function loadData() {
+                try {
+                    const response = await fetch(API_URL);
+                    if (!response.ok) {
+                        // For a GET request, a 404 is not a critical error, it just means no data exists yet.
+                        if(response.status === 404) {
+                            console.log('No resume data found on server. Starting fresh.');
+                            return; // Exit the function gracefully
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    // The data from the DB is a string, so we need to parse it.
+                    const dataString = await response.json();
+                    if (!dataString) return; // Handle case where server returns empty success response
+                    const data = JSON.parse(dataString);
+                    
+                    if (!data) return;
+
+                    nameInput.value = data.name || '';
+                    emailInput.value = data.email || '';
+                    phoneInput.value = data.phone || '';
+                    linkedinInput.value = data.linkedin || '';
+                    githubInput.value = data.github || '';
+                    summaryInput.value = data.summary || '';
+                    
+                    if (data.experience && data.experience.length > 0) {
+                        experienceContainer.innerHTML = '';
+                        data.experience.forEach(exp => addExperienceBlock(exp));
+                    }
+                } catch (error) {
+                    console.error('Error loading data:', error);
+                    let userMessage = 'Error: Could not load data from the server.';
+                    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+                        userMessage += ' This is often a network or CORS issue. Please ensure the backend server is running and accessible.';
+                    }
+                    feedbackMsg.textContent = userMessage;
+                } finally {
+                    // Always update the preview after attempting to load data
+                    updatePreview();
+                }
+            }
+            
+            function updatePreview() {
+                const data = collectFormData();
+                
+                const s = (str) => str || '';
+                const link = (url) => url ? url.replace(/^(https?:\/\/)?/, 'https://') : '';
+
+                let experienceHTML = '';
+                if(data.experience) {
+                    data.experience.forEach(exp => {
+                        experienceHTML += `
+                            <div class="mt-3">
+                                <div class="flex justify-between items-baseline">
+                                    <h4 class="text-md font-bold">${s(exp.jobTitle)}</h4>
+                                    <p class="text-sm font-medium text-gray-600">${s(exp.dates)}</p>
+                                </div>
+                                <div class="flex justify-between items-baseline">
+                                    <p class="text-sm font-semibold">${s(exp.company)}</p>
+                                    <p class="text-sm text-gray-500">${s(exp.location)}</p>
+                                </div>
+                                <p class="text-sm mt-1 text-gray-700 preview-content">${s(exp.description).replace(/\n/g, '<br>')}</p>
+                            </div>
+                        `;
+                    });
+                }
+
+                resumePreviewContainer.innerHTML = `
+                    <div class="text-center">
+                        <h1 class="text-3xl font-bold">${s(data.name)}</h1>
+                        <div class="flex justify-center gap-x-4 gap-y-1 flex-wrap text-sm mt-2 text-indigo-600">
+                            ${data.email ? `<span>${s(data.email)}</span>` : ''}
+                            ${data.phone ? `<span>${s(data.phone)}</span>` : ''}
+                            ${data.linkedin ? `<span><a href="${link(data.linkedin)}" target="_blank" class="hover:underline">${s(data.linkedin)}</a></span>` : ''}
+                            ${data.github ? `<span><a href="${link(data.github)}" target="_blank" class="hover:underline">${s(data.github)}</a></span>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Summary</h3>
+                        <p class="text-sm mt-2 text-gray-700 preview-content">${s(data.summary).replace(/\n/g, '<br>')}</p>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Work Experience</h3>
+                        ${experienceHTML || '<p class="text-sm mt-2 text-gray-500">No work experience added yet.</p>'}
+                    </div>
+                `;
+            }
+            
+            function addExperienceBlock(expData = {}) {
+                const experienceItem = document.createElement('div');
+                experienceItem.className = 'experience-item border p-4 rounded-lg relative space-y-3';
+
+                experienceItem.innerHTML = `
+                    <button class="remove-experience-btn absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold">✖</button>
+                    <input type="text" placeholder="Job Title" class="job-title mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.jobTitle || ''}">
+                    <input type="text" placeholder="Company" class="company mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.company || ''}">
+                    <input type="text" placeholder="Location (e.g., Chicago, IL)" class="location mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.location || ''}">
+                    <input type="text" placeholder="Dates (e.g., May 2020 - Present)" class="dates mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.dates || ''}">
+                    <textarea placeholder="Description of responsibilities..." rows="3" class="description mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md">${expData.description || ''}</textarea>
+                `;
+                
+                experienceContainer.appendChild(experienceItem);
+                
+                experienceItem.querySelector('.remove-experience-btn').addEventListener('click', () => {
+                    experienceItem.remove();
+                    updatePreview();
+                });
+
+                experienceItem.querySelectorAll('input, textarea').forEach(input => {
+                    input.addEventListener('input', updatePreview);
+                });
+            }
+
+            // --- Event Listeners ---
+            saveBtn.addEventListener('click', saveData);
+            addExperienceBtn.addEventListener('click', () => addExperienceBlock());
+            document.querySelector('.lg\\:grid-cols-2').addEventListener('input', updatePreview);
+            
+            // --- Initial Load ---
+            async function initializeApp() {
+                if (experienceContainer.children.length === 0) {
+                    addExperienceBlock();
+                }
+                // Load data from the API when the page loads.
+                await loadData();
+            }
+
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
+
