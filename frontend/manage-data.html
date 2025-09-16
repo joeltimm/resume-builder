@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Your Data</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 lg:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Manage Your Data</h1>
+            <p class="text-lg text-gray-600 mt-2">Add, view, and delete your skills and accomplishments.</p>
+            <a href="index.html" class="text-indigo-600 hover:underline mt-2 inline-block">← Back to Resume Builder</a>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">Skills</h2>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="skill-input" placeholder="Enter a new skill" class="flex-grow block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <button id="add-skill-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Add</button>
+                </div>
+                <ul id="skills-list" class="space-y-2">
+                    </ul>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">Accomplishments</h2>
+                <div class="flex gap-2 mb-4">
+                    <textarea id="accomplishment-input" placeholder="Enter a new accomplishment" rows="3" class="flex-grow block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <button id="add-accomplishment-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors self-start">Add</button>
+                </div>
+                <ul id="accomplishments-list" class="space-y-2">
+                    </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Configuration ---
+            const API_BASE_URL = 'http://100.120.237.30:5031/api';
+
+            // --- DOM Elements ---
+            const skillInput = document.getElementById('skill-input');
+            const addSkillBtn = document.getElementById('add-skill-btn');
+            const skillsList = document.getElementById('skills-list');
+
+            const accomplishmentInput = document.getElementById('accomplishment-input');
+            const addAccomplishmentBtn = document.getElementById('add-accomplishment-btn');
+            const accomplishmentsList = document.getElementById('accomplishments-list');
+            
+            // --- Generic Fetch and Render Function ---
+            async function loadAndRenderItems(endpoint, listElement, itemTextKey) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/${endpoint}`);
+                    const items = await response.json();
+                    listElement.innerHTML = ''; // Clear current list
+                    items.forEach(item => {
+                        const li = document.createElement('li');
+                        li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded';
+                        li.innerHTML = `
+                            <span class="flex-grow pr-4">${item[itemTextKey]}</span>
+                            <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 font-bold">✖</button>
+                        `;
+                        listElement.appendChild(li);
+                    });
+                } catch (error) {
+                    console.error(`Error loading ${endpoint}:`, error);
+                    listElement.innerHTML = `<li class="text-red-500">Could not load items.</li>`;
+                }
+            }
+
+            // --- Generic Add Item Function ---
+            async function addItem(endpoint, inputElement, body) {
+                const text = inputElement.value.trim();
+                if (!text) return;
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                    });
+
+                    if (response.ok) {
+                        inputElement.value = ''; // Clear input
+                        // Reload the list to show the new item
+                        loadAndRenderItems(endpoint, inputElement.id.includes('skill') ? skillsList : accomplishmentsList, Object.keys(body)[0]);
+                    } else {
+                        const errorData = await response.json();
+                        alert(`Error: ${errorData.error}`);
+                    }
+                } catch (error) {
+                    console.error(`Error adding item to ${endpoint}:`, error);
+                    alert('An error occurred. Please check the console.');
+                }
+            }
+
+            // --- Generic Delete Item Function ---
+            async function deleteItem(endpoint, id, listElement, itemTextKey) {
+                 if (!confirm('Are you sure you want to delete this item?')) return;
+                try {
+                    await fetch(`${API_BASE_URL}/${endpoint}/${id}`, { method: 'DELETE' });
+                    // Reload the list after deleting
+                    loadAndRenderItems(endpoint, listElement, itemTextKey);
+                } catch (error) {
+                     console.error(`Error deleting item from ${endpoint}:`, error);
+                }
+            }
+
+            // --- Event Listeners ---
+            addSkillBtn.addEventListener('click', () => addItem('skills', skillInput, { skill_text: skillInput.value }));
+            addAccomplishmentBtn.addEventListener('click', () => addItem('accomplishments', accomplishmentInput, { accomplishment_text: accomplishmentInput.value }));
+
+            // Use event delegation for delete buttons
+            document.body.addEventListener('click', (event) => {
+                if (event.target.classList.contains('delete-btn')) {
+                    const id = event.target.dataset.id;
+                    const list = event.target.closest('ul');
+                    if (list.id === 'skills-list') {
+                        deleteItem('skills', id, skillsList, 'skill_text');
+                    } else if (list.id === 'accomplishments-list') {
+                        deleteItem('accomplishments', id, accomplishmentsList, 'accomplishment_text');
+                    }
+                }
+            });
+
+            // --- Initial Load ---
+            loadAndRenderItems('skills', skillsList, 'skill_text');
+            loadAndRenderItems('accomplishments', accomplishmentsList, 'accomplishment_text');
+        });
+    </script>
+</body>
+</html>
