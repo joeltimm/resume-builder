@@ -1,19 +1,27 @@
 #resume-builder/docker-compose.yml
 
 services:
+  frontend:
+    # Build the image from the Dockerfile in the './frontend' directory
+    build: ./frontend
+    restart: always
+    ports:
+      # Map port 8080 on your server to port 80 inside the container
+      - "8080:80"
   backend:
     # This tells Docker to build an image from the Dockerfile in the './backend' directory.
     build: ./backend
     restart: always
-    # This links the .env file into the container, so our Python app can read it.
+    # This links the .env file into the container, so the Python app can read it.
     env_file:
       - .env
-    # This is the 'ports' section for the backend service. It maps port 5001 on
-    # your server (the host) to port 5001 inside the container.
+    # maps port 5001 on
+    # the server (the host) to port 5001 inside the container.
     ports:
       - "5031:5001"
-    # This tells Docker not to start the 'backend' service until the 'postgres'
-    # service is healthy and ready to accept connections.
+    volumes:
+      # Mounts the named volume 'model_cache' to the cache directory inside the container
+      - model_cache:/root/.cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,7 +43,21 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-# This top-level 'volumes' section formally defines the named volume we used above.
-# This makes it easier to manage with docker commands.
+  stirling-pdf:
+    image: frooodle/s-pdf:latest
+    restart: always
+    ports:
+      # It's good practice to map to a different external port if 8080 is common.
+      # We will use 8090 on the host, mapping to 8080 inside the container.
+      - "8092:8080"
+    environment:
+      # These are optional but recommended settings for Stirling-PDF
+      - DOCKER_ENABLE_SECURITY=false
+      - SYSTEM_DEFAULT_LOCALE=en_US
+      - SYSTEM_GOOGLE_ANALYTICS_ID=${GOOGLE_ANALYTICS_ID}
+      - SYSTEM_ALLOW_FILE_DOWNLOAD=true
+      - SYSTEM_ENABLE_LOGIN=false
+
 volumes:
   postgres_data:
+  model_cache:

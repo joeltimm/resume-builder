@@ -3,16 +3,27 @@
 
 import os
 import psycopg2
-from flask import Flask, request, jsonify
+import json # Import the json library
+import numpy as np # Import numpy for array operations
+import requests
+import io
+import click
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+from sentence_transformers import SentenceTransformer, util # Import sentence-transformers
 
 # --- Initialization ---
 # Initialize the Flask application
 app = Flask(__name__)
 
 # Enable Cross-Origin Resource Sharing (CORS)
-# This allows the frontend (on port 8080) to make requests to the backend (on port 5031)
 CORS(app)
+
+# Load the pre-trained Sentence Transformer model. 
+# This model is optimized for semantic similarity tasks.
+# The first time this runs, it will download the model, so it might take a moment.
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
 
 # --- Database Functions ---
 
@@ -32,44 +43,61 @@ def get_db_connection():
         print(f"Error connecting to database: {e}")
         return None
 
-// Path: joeltimm/resume-builder/backend/app.py
+#resume-builder/backend/app.py
+
 def setup_database():
-    """Ensures all required tables exist in the database."""
+    #Ensures all required tables exist in the database.
     conn = get_db_connection()
-    if conn:
-        cur = conn.cursor()
-        
-        # --- Resume Table ---
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS resume (
-                id SERIAL PRIMARY KEY,
-                content TEXT NOT NULL
-            );
-        ''')
-        # Check if the default resume entry exists, if not, create one.
-        cur.execute('SELECT id FROM resume WHERE id = 1;')
-        if cur.fetchone() is None:
-            cur.execute('INSERT INTO resume (id, content) VALUES (1, %s);', ('{}',))
+    if conn: # <-- This is the important check
+        try:
+            cur = conn.cursor()
+            
+            # --- Resume Table ---
+            # FIX: Changed column name from 'data' to 'content' to match the GET request
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS resume (
+                    id SERIAL PRIMARY KEY,
+                    content TEXT NOT NULL
+                );
+            ''')
+            # Check if the default resume entry exists, if not, create one.
+            cur.execute('SELECT id FROM resume WHERE id = 1;')
+            if cur.fetchone() is None:
+                cur.execute('INSERT INTO resume (id, content) VALUES (1, %s);', ('{}',))
 
-        # --- New Skills Table ---
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS skills (
-                id SERIAL PRIMARY KEY,
-                skill_text TEXT NOT NULL UNIQUE
-            );
-        ''')
+            # --- New Skills Table ---
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS skills (
+                    id SERIAL PRIMARY KEY,
+                    skill_text TEXT NOT NULL UNIQUE,
+                    embedding TEXT 
+                );
+            ''')
 
-        # --- New Accomplishments Table ---
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS accomplishments (
-                id SERIAL PRIMARY KEY,
-                accomplishment_text TEXT NOT NULL UNIQUE
-            );
-        ''')
-        
-        conn.commit()
-        cur.close()
-        conn.close()
+            # --- New Accomplishments Table ---
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS accomplishments (
+                    id SERIAL PRIMARY KEY,
+                    accomplishment_text TEXT NOT NULL UNIQUE,
+                    embedding TEXT
+                );
+            ''')
+            
+            conn.commit()
+        finally:
+            # Ensure the connection is closed even if errors occur
+            cur.close()
+            conn.close()
+
+# --- Create a Flask CLI command to set up the database ---
+
+@click.command('init-db')
+def init_db_command():
+    """Creates new tables in the database if they don't already exist."""
+    setup_database()
+    click.echo('Initialized the database.')
+
+app.cli.add_command(init_db_command)
 
 # --- API Routes ---
 
@@ -86,15 +114,10 @@ def handle_resume():
     cur = conn.cursor()
 
     if request.method == 'POST':
-        # Get the JSON data sent from the frontend
         resume_data = request.get_json()
-        
-        # Use an "upsert" operation: Update the row with id=1, or insert it if it doesn't exist.
-        # This is safer than a simple UPDATE.
-        # We are storing the entire JSON payload in the 'data' column.
         cur.execute(
-            "INSERT INTO resume (id, data) VALUES (1, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data;",
-            (jsonify(resume_data).get_data(as_text=True),)
+            "INSERT INTO resume (id, content) VALUES (1, %s) ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content;",
+            (json.dumps(resume_data),)
         )
         conn.commit()
         
@@ -103,30 +126,30 @@ def handle_resume():
         return jsonify({"message": "Resume saved successfully"})
 
     if request.method == 'GET':
-        # Fetch the resume data from the row with id=1.
-        cur.execute("SELECT data FROM resume WHERE id = 1;")
+        cur.execute("SELECT content FROM resume WHERE id = 1;")
         resume_data = cur.fetchone()
         
         cur.close()
         conn.close()
 
         if resume_data and resume_data[0]:
-            # If data exists, return it.
-            return jsonify(resume_data[0])
+            return jsonify(json.loads(resume_data[0]))
         else:
-            # If no data is found, return a 404.
             return jsonify({"message": "No resume data found"}), 404
 
 # --- API for Skills ---
 
 @app.route('/api/skills', methods=['POST'])
 def add_skill():
-    """Adds a new skill to the database."""
+    """Adds a new skill and its embedding to the database."""
     data = request.json
     skill_text = data.get('skill_text')
 
     if not skill_text:
         return jsonify({"error": "Skill text is required"}), 400
+
+    # Generate the embedding for the new skill text
+    embedding = model.encode(skill_text).tolist()
 
     conn = get_db_connection()
     if not conn:
@@ -134,16 +157,21 @@ def add_skill():
     
     cur = conn.cursor()
     try:
-        cur.execute('INSERT INTO skills (skill_text) VALUES (%s) RETURNING id;', (skill_text,))
+        # Store both the text and the JSON-serialized embedding
+        cur.execute(
+            'INSERT INTO skills (skill_text, embedding) VALUES (%s, %s) RETURNING id;', 
+            (skill_text, json.dumps(embedding))
+        )
         new_id = cur.fetchone()[0]
         conn.commit()
         return jsonify({"message": "Skill added successfully", "id": new_id}), 201
     except psycopg2.IntegrityError:
-        conn.rollback() # Roll back the transaction on error
+        conn.rollback() 
         return jsonify({"error": "This skill already exists"}), 409
     finally:
         cur.close()
         conn.close()
+
 
 @app.route('/api/skills', methods=['GET'])
 def get_skills():
@@ -175,17 +203,19 @@ def delete_skill(skill_id):
 
     return jsonify({"message": "Skill deleted successfully"})
 
-# --- API for Skills ---
+# --- API for Accomplishments ---
 
 @app.route('/api/accomplishments', methods=['POST'])
 def add_accomplishment():
-    """Adds a new accomplishment to the database."""
+    """Adds a new accomplishment and its embedding to the database."""
     data = request.json
-    # FIX: Changed variable to be specific to accomplishments
     accomplishment_text = data.get('accomplishment_text')
 
     if not accomplishment_text:
         return jsonify({"error": "Accomplishment text is required"}), 400
+
+    # Generate the embedding for the new accomplishment text
+    embedding = model.encode(accomplishment_text).tolist()
 
     conn = get_db_connection()
     if not conn:
@@ -193,8 +223,11 @@ def add_accomplishment():
     
     cur = conn.cursor()
     try:
-        # FIX: Correctly reference the accomplishment_text variable
-        cur.execute('INSERT INTO accomplishments (accomplishment_text) VALUES (%s) RETURNING id;', (accomplishment_text,))
+        # Store both the text and the JSON-serialized embedding
+        cur.execute(
+            'INSERT INTO accomplishments (accomplishment_text, embedding) VALUES (%s, %s) RETURNING id;', 
+            (accomplishment_text, json.dumps(embedding))
+        )
         new_id = cur.fetchone()[0]
         conn.commit()
         return jsonify({"message": "Accomplishment added successfully", "id": new_id}), 201
@@ -213,9 +246,7 @@ def get_accomplishments():
         return jsonify({"error": "Database connection failed"}), 500
     
     cur = conn.cursor()
-    # FIX: Corrected column name from 'accomplishments_text' to 'accomplishment_text'
     cur.execute('SELECT id, accomplishment_text FROM accomplishments ORDER BY accomplishment_text;')
-    # FIX: Corrected key in the dictionary to match the column name
     accomplishments = [{"id": row[0], "accomplishment_text": row[1]} for row in cur.fetchall()]
     cur.close()
     conn.close()
@@ -230,7 +261,6 @@ def delete_accomplishment(accomplishment_id):
         return jsonify({"error": "Database connection failed"}), 500
     
     cur = conn.cursor()
-    # FIX: Corrected table name from 'accomplishmentss' to 'accomplishments'
     cur.execute('DELETE FROM accomplishments WHERE id = %s;', (accomplishment_id,))
     conn.commit()
     cur.close()
@@ -238,11 +268,145 @@ def delete_accomplishment(accomplishment_id):
 
     return jsonify({"message": "Accomplishment deleted successfully"})
 
+# --- NEW: API for AI Matching ---
 
-# --- Main Execution ---
-if __name__ == '__main__':
-    # This check ensures that setup_database() is called once when the app starts.
-    setup_database()
-    # Run the Flask development server.
-    # host='0.0.0.0' makes it accessible from outside the container.
-    app.run(host='0.0.0.0', port=5001)
+@app.route('/api/match', methods=['POST'])
+def match_skills():
+    """
+    Finds the most relevant skills and accomplishments for a given job description.
+    """
+    data = request.json
+    job_description = data.get('job_description')
+    top_n = data.get('limit', 10) # Allow frontend to specify how many results to return
+
+    if not job_description:
+        return jsonify({"error": "Job description is required"}), 400
+
+    # 1. Generate embedding for the job description
+    job_embedding = model.encode(job_description)
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    cur = conn.cursor()
+
+    # 2. Fetch all skills and their embeddings
+    cur.execute('SELECT id, skill_text, embedding FROM skills;')
+    skills = cur.fetchall()
+    
+    # 3. Fetch all accomplishments and their embeddings
+    cur.execute('SELECT id, accomplishment_text, embedding FROM accomplishments;')
+    accomplishments = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    all_items = []
+    if skills:
+        skill_embeddings = np.array([json.loads(s[2]) for s in skills])
+        # Compute cosine similarity between the job description and all skills
+        skill_scores = util.cos_sim(job_embedding, skill_embeddings)[0]
+        for i, skill in enumerate(skills):
+            all_items.append({"id": f"skill-{skill[0]}", "text": skill[1], "score": float(skill_scores[i]), "type": "skill"})
+            
+    if accomplishments:
+        accomplishment_embeddings = np.array([json.loads(a[2]) for a in accomplishments])
+        # Compute cosine similarity for accomplishments
+        accomplishment_scores = util.cos_sim(job_embedding, accomplishment_embeddings)[0]
+        for i, acc in enumerate(accomplishments):
+            all_items.append({"id": f"acc-{acc[0]}", "text": acc[1], "score": float(accomplishment_scores[i]), "type": "accomplishment"})
+
+    # 4. Sort all items by score in descending order
+    sorted_items = sorted(all_items, key=lambda x: x['score'], reverse=True)
+    
+    # 5. Return the top N results
+    return jsonify(sorted_items[:top_n])
+
+@app.route('/api/export-pdf', methods=['POST'])
+def export_pdf():
+    """
+    Receives resume data, formats it as HTML, sends it to Stirling-PDF,
+    and returns the resulting PDF file.
+    """
+    resume_data = request.json
+
+    # --- 1. Format the data into an HTML string ---
+    # This is a simple template. You can make this as complex and stylish as you want.
+    skills_html = ''.join([f'<span style="background-color: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">{skill}</span>' for skill in resume_data.get('skills', [])])
+    
+    accomplishments_html = ''.join([f'<li style="margin-bottom: 5px;">{acc}</li>' for acc in resume_data.get('accomplishments', [])])
+
+    experience_html = ''
+    for exp in resume_data.get('experience', []):
+        experience_html += f"""
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between;">
+                <h4 style="margin: 0; font-size: 1.1em;">{exp.get('jobTitle', '')}</h4>
+                <p style="margin: 0;">{exp.get('dates', '')}</p>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <p style="margin: 0; font-style: italic;">{exp.get('company', '')}</p>
+                <p style="margin: 0;">{exp.get('location', '')}</p>
+            </div>
+            <p style="margin-top: 5px;">{exp.get('description', '').replace('/n', '<br/>')}</p>
+        </div>
+        """
+
+    html_content = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: sans-serif; font-size: 11pt; }}
+            h1, h2, h3, h4, p {{ margin: 0; padding: 0; }}
+            hr {{ border: none; border-top: 1px solid #ccc; margin: 15px 0; }}
+        </style>
+    </head>
+    <body>
+        <div style="text-align: center;">
+            <h1 style="font-size: 2.5em;">{resume_data.get('name', 'Your Name')}</h1>
+            <p>{resume_data.get('email', '')} | {resume_data.get('phone', '')} | {resume_data.get('linkedin', '')} | {resume_data.get('github', '')}</p>
+        </div>
+        <hr>
+        <div>
+            <h3>Summary</h3>
+            <p>{resume_data.get('summary', '')}</p>
+        </div>
+        <hr>
+        <div>
+            <h3>Skills</h3>
+            <p>{skills_html}</p>
+        </div>
+        <hr>
+        <div>
+            <h3>Work Experience</h3>
+            {experience_html}
+        </div>
+        <hr>
+        <div>
+            <h3>Key Accomplishments</h3>
+            <ul>{accomplishments_html}</ul>
+        </div>
+    </body>
+    </html>
+    """
+
+    # --- 2. Make API call to Stirling-PDF ---
+    # The URL uses the service name 'stirling-pdf' which Docker resolves to the container's IP.
+    stirling_url = 'http://stirling-pdf:8080/api/v1/convert/html/pdf'
+    files = {'fileInput': ('resume.html', html_content, 'text/html')}
+
+    try:
+        response = requests.post(stirling_url, files=files)
+        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+
+        # --- 3. Return the PDF to the user ---
+        return send_file(
+            io.BytesIO(response.content),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='resume.pdf'
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"Error calling Stirling-PDF: {e}")
+        return jsonify({"error": "Failed to generate PDF"}), 500
+        
