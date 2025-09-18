@@ -48,10 +48,10 @@
                     <textarea id="job-description" rows="8" class="mt-2 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Paste the full job description here..."></textarea>
                     <button id="analyze-btn" class="mt-3 bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Analyze Description</button>
                 </div>
-                
+
                 <div class="mb-6">
                     <h3 class="text-xl font-semibold text-gray-700">2. Suggested Keywords</h3>
-                    <p class="text-sm text-gray-500">Based on the job description, here are your most relevant skills and accomplishments. Select them to add to your resume.</p>
+                    <p class="text-sm text-gray-500">Based on the job description, here are your most relevant items. Select them to add to your resume.</p>
                     <div id="suggestions-container" class="mt-3 space-y-2">
                         </div>
                 </div>
@@ -71,6 +71,10 @@
                         <input type="tel" id="phone" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
                     <div>
+                        <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
+                        <input type="text" id="location" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., Chicago, IL">
+                    </div>
+                    <div>
                         <label for="linkedin" class="block text-sm font-medium text-gray-700">LinkedIn Profile URL</label>
                         <input type="url" id="linkedin" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
@@ -79,18 +83,10 @@
                         <input type="url" id="github" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
                     <div>
-                        <label for="summary" class="block text-sm font-medium text-gray-700">Professional Summary</label>
-                        <textarea id="summary" rows="4" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                        <label for="portfolio" class="block text-sm font-medium text-gray-700">Portfolio Website</label>
+                        <input type="url" id="portfolio" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
-                </div>
-
-                <div class="mt-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-semibold text-gray-700">Work Experience</h3>
-                        <button id="add-experience-btn" class="bg-green-500 text-white font-bold py-1 px-3 rounded-lg hover:bg-green-600 transition-colors text-sm">+ Add</button>
-                    </div>
-                    <div id="experience-container" class="space-y-6">
-                        </div>
+                    <button id="save-details-btn" class="mt-3 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">Save Details</button>
                 </div>
             </div>
 
@@ -98,30 +94,35 @@
                  </div>
 
         </div>
+        <div class="text-center mt-8">
+            <button id="download-pdf-btn" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors text-lg">Download Resume as PDF</button>
+        </div>
     </div>
 
        <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- Configuration ---
-            const API_URL_RESUME = 'http://100.120.237.30:8080/resume';
-            const API_URL_MATCH = 'http://100.120.237.30:8080/api/match';
+            const API_URL_RESUME = 'http://100.120.237.30:5031/resume';
+            const API_URL_MATCH = 'http://100.120.237.30:5031/api/match';
+            const API_BASE_URL = 'http://100.120.237.30:5031/api';
 
             // --- DOM Element References ---
             const nameInput = document.getElementById('name');
             const emailInput = document.getElementById('email');
             const phoneInput = document.getElementById('phone');
+            const locationInput = document.getElementById('location');
             const linkedinInput = document.getElementById('linkedin');
             const githubInput = document.getElementById('github');
-            const summaryInput = document.getElementById('summary');
-            
-            const addExperienceBtn = document.getElementById('add-experience-btn');
-            const experienceContainer = document.getElementById('experience-container');
+            const portfolioInput = document.getElementById('portfolio');
+            const saveDetailsBtn = document.getElementById('save-details-btn');
             const resumePreviewContainer = document.getElementById('resume-preview-container');
-            
             const jobDescriptionInput = document.getElementById('job-description');
             const analyzeBtn = document.getElementById('analyze-btn');
             const suggestionsContainer = document.getElementById('suggestions-container');
             const downloadPdfBtn = document.getElementById('download-pdf-btn');
+
+            let allWorkExperience = [];
+            let allAccomplishments = [];
 
             // --- Core Functions ---
 
@@ -151,7 +152,7 @@
                     
                     suggestionsContainer.innerHTML = '';
                     if (suggestions.length === 0) {
-                        suggestionsContainer.innerHTML = '<p class="text-gray-500">No matches found. Try adding more skills/accomplishments or use a different job description.</p>';
+                        suggestionsContainer.innerHTML = '<p class="text-gray-500">No matches found. Try adding more data or use a different job description.</p>';
                     } else {
                         suggestions.forEach(item => {
                             const container = document.createElement('div');
@@ -162,6 +163,7 @@
                             checkbox.id = `suggestion-${item.id}`;
                             checkbox.dataset.text = item.text;
                             checkbox.dataset.type = item.type;
+                            checkbox.dataset.id = item.id.split('-')[1]; // Store original ID
                             checkbox.className = 'suggestion-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500';
 
                             const label = document.createElement('label');
@@ -185,24 +187,26 @@
             }
 
             function collectFormData() {
-                const experienceEntries = [];
-                document.querySelectorAll('.experience-item').forEach(item => {
-                    experienceEntries.push({
-                        jobTitle: item.querySelector('.job-title').value,
-                        company: item.querySelector('.company').value,
-                        location: item.querySelector('.location').value,
-                        dates: item.querySelector('.dates').value,
-                        description: item.querySelector('.description').value,
-                    });
-                });
-                
                 const selectedSkills = [];
                 const selectedAccomplishments = [];
+                let selectedSummary = '';
+                const selectedExperience = [];
+
                 document.querySelectorAll('.suggestion-checkbox:checked').forEach(checkbox => {
-                    if (checkbox.dataset.type === 'skill') {
-                        selectedSkills.push(checkbox.dataset.text);
-                    } else if (checkbox.dataset.type === 'accomplishment') {
-                        selectedAccomplishments.push(checkbox.dataset.text);
+                    const type = checkbox.dataset.type;
+                    const text = checkbox.dataset.text;
+                    const id = parseInt(checkbox.dataset.id, 10);
+
+                    if (type === 'skill') {
+                        selectedSkills.push(text);
+                    } else if (type === 'accomplishment') {
+                        const acc = allAccomplishments.find(a => a.id === id);
+                        if (acc) selectedAccomplishments.push(acc);
+                    } else if (type === 'summary') {
+                        selectedSummary = text; // Assuming only one summary can be selected
+                    } else if (type === 'experience') {
+                        const exp = allWorkExperience.find(e => e.id === id);
+                        if (exp) selectedExperience.push(exp);
                     }
                 });
 
@@ -210,10 +214,12 @@
                     name: nameInput.value,
                     email: emailInput.value,
                     phone: phoneInput.value,
+                    location: locationInput.value,
                     linkedin: linkedinInput.value,
                     github: githubInput.value,
-                    summary: summaryInput.value,
-                    experience: experienceEntries,
+                    portfolio: portfolioInput.value,
+                    summary: selectedSummary,
+                    experience: selectedExperience,
                     skills: selectedSkills,
                     accomplishments: selectedAccomplishments
                 };
@@ -221,31 +227,64 @@
             
             async function loadData() {
                 try {
-                    const response = await fetch(API_URL_RESUME);
-                    if (response.status === 404) {
-                        console.log('No resume data found on server. Starting fresh.');
-                        return; 
+                    // Personal details
+                    const resumeResponse = await fetch(API_URL_RESUME);
+                    if (resumeResponse.ok) {
+                        const data = await resumeResponse.json();
+                        nameInput.value = data.name || '';
+                        emailInput.value = data.email || '';
+                        phoneInput.value = data.phone || '';
+                        locationInput.value = data.location || '';
+                        linkedinInput.value = data.linkedin || '';
+                        githubInput.value = data.github || '';
+                        portfolioInput.value = data.portfolio || '';
                     }
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    
-                    const data = await response.json();
-                    if (!data) return;
 
-                    nameInput.value = data.name || '';
-                    emailInput.value = data.email || '';
-                    phoneInput.value = data.phone || '';
-                    linkedinInput.value = data.linkedin || '';
-                    githubInput.value = data.github || '';
-                    summaryInput.value = data.summary || '';
+                    // Work experience
+                    const expResponse = await fetch(`${API_BASE_URL}/work_experience`);
+                    if (expResponse.ok) allWorkExperience = await expResponse.json();
                     
-                    if (data.experience && data.experience.length > 0) {
-                        experienceContainer.innerHTML = '';
-                        data.experience.forEach(exp => addExperienceBlock(exp));
-                    }
+                    // Accomplishments
+                    const accResponse = await fetch(`${API_BASE_URL}/accomplishments`);
+                    if (accResponse.ok) allAccomplishments = await accResponse.json();
+
+
                 } catch (error) {
                     console.error('Error loading data:', error);
                 } finally {
                     updatePreview();
+                }
+            }
+
+            async function savePersonalDetails() {
+                const data = {
+                    name: nameInput.value,
+                    email: emailInput.value,
+                    phone: phoneInput.value,
+                    location: locationInput.value,
+                    linkedin: linkedinInput.value,
+                    github: githubInput.value,
+                    portfolio: portfolioInput.value,
+                };
+
+                saveDetailsBtn.disabled = true;
+                saveDetailsBtn.textContent = 'Saving...';
+
+                try {
+                    const response = await fetch(API_URL_RESUME, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                    });
+                    if (!response.ok) throw new Error('Failed to save details');
+                    saveDetailsBtn.classList.add('flash-success');
+                    setTimeout(() => saveDetailsBtn.classList.remove('flash-success'), 500);
+                } catch (error) {
+                    console.error('Save error:', error);
+                    alert('Could not save personal details.');
+                } finally {
+                    saveDetailsBtn.disabled = false;
+                    saveDetailsBtn.textContent = 'Save Details';
                 }
             }
             
@@ -255,37 +294,39 @@
                 const s = (str) => str || '';
                 const link = (url) => url ? url.replace(/^(https?:\/\/)?/, 'https://') : '';
                 
+                let summaryHTML = '';
+                if(data.summary) {
+                    summaryHTML = `
+                        <div class="mt-6">
+                            <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Summary</h3>
+                            <p class="text-sm mt-2 text-gray-700 preview-content">${s(data.summary).replace(/\n/g, '<br>')}</p>
+                        </div>
+                    `;
+                }
+
                 let skillsHTML = '';
                 if (data.skills && data.skills.length > 0) {
                     skillsHTML = `
                         <div class="mt-6">
                             <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Skills</h3>
-                            <ul class="mt-2 flex flex-wrap gap-2 text-sm">
-                                ${data.skills.map(skill => `<li class="bg-gray-200 text-gray-800 px-2 py-1 rounded-md">${skill}</li>`).join('')}
-                            </ul>
-                        </div>
-                    `;
-                }
-
-                let accomplishmentsHTML = '';
-                if (data.accomplishments && data.accomplishments.length > 0) {
-                    accomplishmentsHTML = `
-                        <div class="mt-6">
-                            <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Key Accomplishments</h3>
-                            <ul class="mt-2 list-disc list-inside space-y-1 text-sm text-gray-700">
-                                ${data.accomplishments.map(acc => `<li>${acc}</li>`).join('')}
-                            </ul>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                ${data.skills.map(skill => `<span class="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm">${skill}</span>`).join('')}
+                            </div>
                         </div>
                     `;
                 }
 
                 let experienceHTML = '';
-                if(data.experience) {
+                if(data.experience && data.experience.length > 0) {
                     data.experience.forEach(exp => {
+                        const accomplishmentsHTML = data.accomplishments
+                            .filter(acc => acc.work_experience_id === exp.id)
+                            .map(acc => `<li>${acc.accomplishment_text}</li>`).join('');
+
                         experienceHTML += `
                             <div class="mt-3">
                                 <div class="flex justify-between items-baseline">
-                                    <h4 class="text-md font-bold">${s(exp.jobTitle)}</h4>
+                                    <h4 class="text-md font-bold">${s(exp.job_title)}</h4>
                                     <p class="text-sm font-medium text-gray-600">${s(exp.dates)}</p>
                                 </div>
                                 <div class="flex justify-between items-baseline">
@@ -293,6 +334,9 @@
                                     <p class="text-sm text-gray-500">${s(exp.location)}</p>
                                 </div>
                                 <p class="text-sm mt-1 text-gray-700 preview-content">${s(exp.description).replace(/\n/g, '<br>')}</p>
+                                <ul class="list-disc list-inside space-y-1 text-sm text-gray-700 mt-2">
+                                    ${accomplishmentsHTML}
+                                </ul>
                             </div>
                         `;
                     });
@@ -304,50 +348,21 @@
                         <div class="flex justify-center gap-x-4 gap-y-1 flex-wrap text-sm mt-2 text-indigo-600">
                             ${data.email ? `<span>${s(data.email)}</span>` : ''}
                             ${data.phone ? `<span>${s(data.phone)}</span>` : ''}
-                            ${data.linkedin ? `<span><a href="${link(data.linkedin)}" target="_blank" class="hover:underline">${s(data.linkedin)}</a></span>` : ''}
-                            ${data.github ? `<span><a href="${link(data.github)}" target="_blank" class="hover:underline">${s(data.github)}</a></span>` : ''}
+                            ${data.location ? `<span>${s(data.location)}</span>` : ''}
+                            ${data.linkedin ? `<span><a href="${link(data.linkedin)}" target="_blank" class="hover:underline">LinkedIn</a></span>` : ''}
+                            ${data.github ? `<span><a href="${link(data.github)}" target="_blank" class="hover:underline">GitHub</a></span>` : ''}
+                            ${data.portfolio ? `<span><a href="${link(data.portfolio)}" target="_blank" class="hover:underline">Portfolio</a></span>` : ''}
                         </div>
                     </div>
 
-                    <div class="mt-6">
-                        <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Summary</h3>
-                        <p class="text-sm mt-2 text-gray-700 preview-content">${s(data.summary).replace(/\n/g, '<br>')}</p>
-                    </div>
-                    
+                    ${summaryHTML}
                     ${skillsHTML}
                     
                     <div class="mt-6">
                         <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Work Experience</h3>
-                        ${experienceHTML || '<p class="text-sm mt-2 text-gray-500">No work experience added yet.</p>'}
+                        ${experienceHTML || '<p class="text-sm mt-2 text-gray-500">No work experience selected.</p>'}
                     </div>
-
-                    ${accomplishmentsHTML}
                 `;
-            }
-            
-            function addExperienceBlock(expData = {}) {
-                const experienceItem = document.createElement('div');
-                experienceItem.className = 'experience-item border p-4 rounded-lg relative space-y-3';
-
-                experienceItem.innerHTML = `
-                    <button class="remove-experience-btn absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold">✖</button>
-                    <input type="text" placeholder="Job Title" class="job-title mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.jobTitle || ''}">
-                    <input type="text" placeholder="Company" class="company mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.company || ''}">
-                    <input type="text" placeholder="Location (e.g., Chicago, IL)" class="location mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.location || ''}">
-                    <input type="text" placeholder="Dates (e.g., May 2020 - Present)" class="dates mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md" value="${expData.dates || ''}">
-                    <textarea placeholder="Description of responsibilities..." rows="3" class="description mt-1 block w-full px-2 py-1.5 border border-gray-300 rounded-md">${expData.description || ''}</textarea>
-                `;
-                
-                experienceContainer.appendChild(experienceItem);
-                
-                experienceItem.querySelector('.remove-experience-btn').addEventListener('click', () => {
-                    experienceItem.remove();
-                    updatePreview();
-                });
-
-                experienceItem.querySelectorAll('input, textarea').forEach(input => {
-                    input.addEventListener('input', updatePreview);
-                });
             }
             
              async function downloadPdf() {
@@ -357,7 +372,7 @@
                 downloadPdfBtn.textContent = 'Generating PDF...';
 
                 try {
-                    const response = await fetch('/api/export-pdf', {
+                    const response = await fetch(`${API_BASE_URL}/export-pdf`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(resumeData)
@@ -387,8 +402,8 @@
             }
 
             // --- Event Listeners ---
-            analyzeBtn.addEventListener('click', analyzeJobDescription); 
-            addExperienceBtn.addEventListener('click', () => addExperienceBlock());
+            analyzeBtn.addEventListener('click', analyzeJobDescription);
+            saveDetailsBtn.addEventListener('click', savePersonalDetails);
             downloadPdfBtn.addEventListener('click', downloadPdf);
             
             const mainForm = document.querySelector('.lg\\:grid-cols-2');
@@ -399,14 +414,7 @@
             });
             
             // --- Initial Load ---
-            async function initializeApp() {
-                if (experienceContainer.children.length === 0) {
-                    addExperienceBlock();
-                }
-                await loadData();
-            }
-
-            initializeApp();
+            loadData();
         });
     </script>
 </body>

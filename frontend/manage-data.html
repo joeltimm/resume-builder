@@ -29,17 +29,44 @@
                     <button id="add-skill-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Add</button>
                 </div>
                 <ul id="skills-list" class="space-y-2">
-                    </ul>
+                </ul>
             </div>
 
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <h2 class="text-2xl font-bold mb-4">Accomplishments</h2>
-                <div class="flex gap-2 mb-4">
+                <div class="flex flex-col gap-2 mb-4">
                     <textarea id="accomplishment-input" placeholder="Enter a new accomplishment" rows="3" class="flex-grow block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <select id="work-experience-select" class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Select a work experience (optional)</option>
+                    </select>
                     <button id="add-accomplishment-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors self-start">Add</button>
                 </div>
                 <ul id="accomplishments-list" class="space-y-2">
-                    </ul>
+                </ul>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">Professional Summary</h2>
+                <div class="flex gap-2 mb-4">
+                    <textarea id="summary-input" placeholder="Enter a professional summary" rows="3" class="flex-grow block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <button id="add-summary-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors self-start">Add</button>
+                </div>
+                <ul id="summaries-list" class="space-y-2">
+                </ul>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">Work Experience</h2>
+                <div class="space-y-3 mb-4">
+                    <input type="text" id="work-job-title-input" placeholder="Job Title" class="block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <input type="text" id="work-company-input" placeholder="Company" class="block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <input type="text" id="work-location-input" placeholder="Location" class="block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <input type="text" id="work-dates-input" placeholder="Dates (e.g., May 2020 - Present)" class="block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <textarea id="work-description-input" placeholder="Description" rows="3" class="block w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+                    <button id="add-work-experience-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Add</button>
+                </div>
+                <ul id="work-experience-list" class="space-y-2">
+                </ul>
             </div>
         </div>
     </div>
@@ -57,20 +84,43 @@
             const accomplishmentInput = document.getElementById('accomplishment-input');
             const addAccomplishmentBtn = document.getElementById('add-accomplishment-btn');
             const accomplishmentsList = document.getElementById('accomplishments-list');
+            const workExperienceSelect = document.getElementById('work-experience-select');
+
+            const summaryInput = document.getElementById('summary-input');
+            const addSummaryBtn = document.getElementById('add-summary-btn');
+            const summariesList = document.getElementById('summaries-list');
+
+            const workJobTitleInput = document.getElementById('work-job-title-input');
+            const workCompanyInput = document.getElementById('work-company-input');
+            const workLocationInput = document.getElementById('work-location-input');
+            const workDatesInput = document.getElementById('work-dates-input');
+            const workDescriptionInput = document.getElementById('work-description-input');
+            const addWorkExperienceBtn = document.getElementById('add-work-experience-btn');
+            const workExperienceList = document.getElementById('work-experience-list');
             
+            let workExperiences = [];
+
             // --- Generic Fetch and Render Function ---
-            async function loadAndRenderItems(endpoint, listElement, itemTextKey) {
+            async function loadAndRenderItems(endpoint, listElement, itemTextKey, renderFunction) {
                 try {
                     const response = await fetch(`${API_BASE_URL}/${endpoint}`);
                     const items = await response.json();
                     listElement.innerHTML = ''; // Clear current list
+                    if (endpoint === 'work_experience') {
+                        workExperiences = items;
+                        populateWorkExperienceSelect();
+                    }
                     items.forEach(item => {
                         const li = document.createElement('li');
                         li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded';
-                        li.innerHTML = `
-                            <span class="flex-grow pr-4">${item[itemTextKey]}</span>
-                            <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 font-bold">✖</button>
-                        `;
+                        if(renderFunction) {
+                            li.innerHTML = renderFunction(item);
+                        } else {
+                            li.innerHTML = `
+                                <span class="flex-grow pr-4">${item[itemTextKey]}</span>
+                                <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 font-bold">✖</button>
+                            `;
+                        }
                         listElement.appendChild(li);
                     });
                 } catch (error) {
@@ -78,12 +128,42 @@
                     listElement.innerHTML = `<li class="text-red-500">Could not load items.</li>`;
                 }
             }
+            
+            function populateWorkExperienceSelect() {
+                workExperienceSelect.innerHTML = '<option value="">Select a work experience (optional)</option>';
+                workExperiences.forEach(exp => {
+                    const option = document.createElement('option');
+                    option.value = exp.id;
+                    option.textContent = `${exp.job_title} at ${exp.company}`;
+                    workExperienceSelect.appendChild(option);
+                });
+            }
+
+            function renderWorkExperience(item) {
+                return `
+                    <div class="flex-grow pr-4">
+                        <p class="font-bold">${item.job_title} at ${item.company}</p>
+                        <p class="text-sm text-gray-600">${item.location} | ${item.dates}</p>
+                        <p class="text-sm">${item.description}</p>
+                    </div>
+                    <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 font-bold self-start">✖</button>
+                `;
+            }
+            
+            function renderAccomplishment(item) {
+                const experience = workExperiences.find(exp => exp.id === item.work_experience_id);
+                const experienceText = experience ? `<p class="text-xs text-gray-500">Associated with: ${experience.job_title}</p>` : '';
+                return `
+                    <div class="flex-grow pr-4">
+                        <p>${item.accomplishment_text}</p>
+                        ${experienceText}
+                    </div>
+                    <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 font-bold">✖</button>
+                `;
+            }
 
             // --- Generic Add Item Function ---
-            async function addItem(endpoint, inputElement, body) {
-                const text = inputElement.value.trim();
-                if (!text) return;
-
+            async function addItem(endpoint, inputElement, body, listElement, itemTextKey, renderFn) {
                 try {
                     const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
                         method: 'POST',
@@ -92,9 +172,9 @@
                     });
 
                     if (response.ok) {
-                        inputElement.value = ''; // Clear input
+                        if(inputElement) inputElement.value = ''; // Clear input
                         // Reload the list to show the new item
-                        loadAndRenderItems(endpoint, inputElement.id.includes('skill') ? skillsList : accomplishmentsList, Object.keys(body)[0]);
+                        loadAndRenderItems(endpoint, listElement, itemTextKey, renderFn);
                     } else {
                         const errorData = await response.json();
                         alert(`Error: ${errorData.error}`);
@@ -104,22 +184,49 @@
                     alert('An error occurred. Please check the console.');
                 }
             }
+            
+            function addWorkExperience() {
+                const body = {
+                    job_title: workJobTitleInput.value,
+                    company: workCompanyInput.value,
+                    location: workLocationInput.value,
+                    dates: workDatesInput.value,
+                    description: workDescriptionInput.value,
+                };
+                addItem('work_experience', null, body, workExperienceList, null, renderWorkExperience);
+                workJobTitleInput.value = '';
+                workCompanyInput.value = '';
+                workLocationInput.value = '';
+                workDatesInput.value = '';
+                workDescriptionInput.value = '';
+            }
+            
+            function addAccomplishment() {
+                const body = {
+                    accomplishment_text: accomplishmentInput.value,
+                    work_experience_id: workExperienceSelect.value ? parseInt(workExperienceSelect.value) : null,
+                };
+                addItem('accomplishments', accomplishmentInput, body, accomplishmentsList, null, renderAccomplishment);
+                workExperienceSelect.value = '';
+            }
 
             // --- Generic Delete Item Function ---
-            async function deleteItem(endpoint, id, listElement, itemTextKey) {
+            async function deleteItem(endpoint, id, listElement, itemTextKey, renderFn) {
                  if (!confirm('Are you sure you want to delete this item?')) return;
                 try {
                     await fetch(`${API_BASE_URL}/${endpoint}/${id}`, { method: 'DELETE' });
                     // Reload the list after deleting
-                    loadAndRenderItems(endpoint, listElement, itemTextKey);
+                    loadAndRenderItems(endpoint, listElement, itemTextKey, renderFn);
                 } catch (error) {
                      console.error(`Error deleting item from ${endpoint}:`, error);
                 }
             }
 
             // --- Event Listeners ---
-            addSkillBtn.addEventListener('click', () => addItem('skills', skillInput, { skill_text: skillInput.value }));
-            addAccomplishmentBtn.addEventListener('click', () => addItem('accomplishments', accomplishmentInput, { accomplishment_text: accomplishmentInput.value }));
+            addSkillBtn.addEventListener('click', () => addItem('skills', skillInput, { skill_text: skillInput.value }, skillsList, 'skill_text'));
+            addAccomplishmentBtn.addEventListener('click', addAccomplishment);
+            addSummaryBtn.addEventListener('click', () => addItem('professional_summaries', summaryInput, { summary_text: summaryInput.value }, summariesList, 'summary_text'));
+            addWorkExperienceBtn.addEventListener('click', addWorkExperience);
 
             // Use event delegation for delete buttons
             document.body.addEventListener('click', (event) => {
@@ -129,14 +236,23 @@
                     if (list.id === 'skills-list') {
                         deleteItem('skills', id, skillsList, 'skill_text');
                     } else if (list.id === 'accomplishments-list') {
-                        deleteItem('accomplishments', id, accomplishmentsList, 'accomplishment_text');
+                        deleteItem('accomplishments', id, accomplishmentsList, null, renderAccomplishment);
+                    } else if (list.id === 'summaries-list') {
+                        deleteItem('professional_summaries', id, summariesList, 'summary_text');
+                    } else if (list.id === 'work-experience-list') {
+                        deleteItem('work_experience', id, workExperienceList, null, renderWorkExperience);
                     }
                 }
             });
 
             // --- Initial Load ---
-            loadAndRenderItems('skills', skillsList, 'skill_text');
-            loadAndRenderItems('accomplishments', accomplishmentsList, 'accomplishment_text');
+            async function initialLoad() {
+                await loadAndRenderItems('work_experience', workExperienceList, null, renderWorkExperience);
+                loadAndRenderItems('skills', skillsList, 'skill_text');
+                loadAndRenderItems('accomplishments', accomplishmentsList, null, renderAccomplishment);
+                loadAndRenderItems('professional_summaries', summariesList, 'summary_text');
+            }
+            initialLoad();
         });
     </script>
 </body>
