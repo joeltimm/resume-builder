@@ -91,16 +91,49 @@ def setup_database():
                 CREATE TABLE IF NOT EXISTS accomplishments (
                     id SERIAL PRIMARY KEY,
                     accomplishment_text TEXT NOT NULL UNIQUE,
-                    embedding TEXT,
-                    work_experience_id INTEGER REFERENCES work_experience(id)
+                    embedding TEXT
                 );
             ''')
+            
+            # Check if work_experience_id column exists in accomplishments table, if not add it.
+            cur.execute("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'accomplishments' AND column_name = 'work_experience_id';
+            """)
+            if cur.fetchone() is None:
+                cur.execute("""
+                    ALTER TABLE accomplishments
+                    ADD COLUMN work_experience_id INTEGER REFERENCES work_experience(id);
+                """)
+
 
             # --- Professional Summaries Table ---
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS professional_summaries (
                     id SERIAL PRIMARY KEY,
                     summary_text TEXT NOT NULL UNIQUE,
+                    embedding TEXT
+                );
+            ''')
+
+            # --- Education Table ---
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS education (
+                    id SERIAL PRIMARY KEY,
+                    degree TEXT NOT NULL,
+                    institution TEXT NOT NULL,
+                    embedding TEXT
+                );
+            ''')
+
+            # --- Technical Projects Table ---
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS technical_projects (
+                    id SERIAL PRIMARY KEY,
+                    project_name TEXT NOT NULL,
+                    description TEXT,
+                    tools TEXT,
                     embedding TEXT
                 );
             ''')
@@ -433,6 +466,147 @@ def delete_work_experience(experience_id):
 
     return jsonify({"message": "Work experience deleted successfully"})
 
+# --- API for Education ---
+
+@app.route('/api/education', methods=['POST'])
+def add_education():
+    """Adds a new education entry and its embedding to the database."""
+    data = request.json
+    degree = data.get('degree')
+    institution = data.get('institution')
+
+    if not degree or not institution:
+        return jsonify({"error": "Degree and institution are required"}), 400
+
+    text_to_embed = f"{degree} {institution}"
+    embedding = model.encode(text_to_embed).tolist()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            'INSERT INTO education (degree, institution, embedding) VALUES (%s, %s, %s) RETURNING id;',
+            (degree, institution, json.dumps(embedding))
+        )
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        return jsonify({"message": "Education added successfully", "id": new_id}), 201
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return jsonify({"error": "This education entry already exists"}), 409
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/api/education', methods=['GET'])
+def get_education():
+    """Fetches all education entries from the database."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    cur = conn.cursor()
+    cur.execute('SELECT id, degree, institution FROM education ORDER BY id;')
+    education = [{"id": row[0], "degree": row[1], "institution": row[2]} for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    return jsonify(education)
+
+@app.route('/api/education/<int:education_id>', methods=['DELETE'])
+def delete_education(education_id):
+    """Deletes an education entry from the database."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    cur = conn.cursor()
+    cur.execute('DELETE FROM education WHERE id = %s;', (education_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({"message": "Education deleted successfully"})
+
+
+# --- API for Technical Projects ---
+
+@app.route('/api/technical_projects', methods=['POST'])
+def add_technical_project():
+    """Adds a new technical project and its embedding to the database."""
+    data = request.json
+    project_name = data.get('project_name')
+    description = data.get('description', '')
+    tools = data.get('tools', '')
+
+    if not project_name:
+        return jsonify({"error": "Project name is required"}), 400
+
+    text_to_embed = f"{project_name} {description} {tools}"
+    embedding = model.encode(text_to_embed).tolist()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            'INSERT INTO technical_projects (project_name, description, tools, embedding) VALUES (%s, %s, %s, %s) RETURNING id;',
+            (project_name, description, tools, json.dumps(embedding))
+        )
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        return jsonify({"message": "Technical project added successfully", "id": new_id}), 201
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return jsonify({"error": "This technical project already exists"}), 409
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/api/technical_projects', methods=['GET'])
+def get_technical_projects():
+    """Fetches all technical projects from the database."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    cur = conn.cursor()
+    cur.execute('SELECT id, project_name, description, tools FROM technical_projects ORDER BY id;')
+    projects = [
+        {
+            "id": row[0],
+            "project_name": row[1],
+            "description": row[2],
+            "tools": row[3],
+        }
+        for row in cur.fetchall()
+    ]
+    cur.close()
+    conn.close()
+
+    return jsonify(projects)
+
+@app.route('/api/technical_projects/<int:project_id>', methods=['DELETE'])
+def delete_technical_project(project_id):
+    """Deletes a technical project from the database."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    cur = conn.cursor()
+    cur.execute('DELETE FROM technical_projects WHERE id = %s;', (project_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({"message": "Technical project deleted successfully"})
+
+
 # --- NEW: API for AI Matching ---
 
 @app.route('/api/match', methods=['POST'])
@@ -442,71 +616,66 @@ def match_skills():
     """
     data = request.json
     job_description = data.get('job_description')
-    top_n = data.get('limit', 10) # Allow frontend to specify how many results to return
+    top_n = data.get('limit', 20) 
 
     if not job_description:
         return jsonify({"error": "Job description is required"}), 400
 
     # 1. Generate embedding for the job description
-    job_embedding = model.encode(job_description)
+    job_embedding = model.encode(job_description, convert_to_tensor=True)
 
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
     cur = conn.cursor()
 
-    # 2. Fetch all skills and their embeddings
+    # 2. Fetch all items from the database
     cur.execute('SELECT id, skill_text, embedding FROM skills;')
     skills = cur.fetchall()
-
-    # 3. Fetch all accomplishments and their embeddings
     cur.execute('SELECT id, accomplishment_text, embedding FROM accomplishments;')
     accomplishments = cur.fetchall()
-
-    # 4. Fetch all professional summaries and their embeddings
     cur.execute('SELECT id, summary_text, embedding FROM professional_summaries;')
     summaries = cur.fetchall()
-
-    # 5. Fetch all work experience and their embeddings
-    cur.execute('SELECT id, job_title, description, embedding FROM work_experience;')
+    cur.execute('SELECT id, job_title, company, description, embedding FROM work_experience;')
     experiences = cur.fetchall()
-
+    cur.execute('SELECT id, degree, institution, embedding FROM education;')
+    educations = cur.fetchall()
+    cur.execute('SELECT id, project_name, description, tools, embedding FROM technical_projects;')
+    projects = cur.fetchall()
     cur.close()
     conn.close()
 
     all_items = []
-    if skills:
-        skill_embeddings = np.array([json.loads(s[2]) for s in skills])
-        # Compute cosine similarity between the job description and all skills
-        skill_scores = util.cos_sim(job_embedding, skill_embeddings)[0]
-        for i, skill in enumerate(skills):
-            all_items.append({"id": f"skill-{skill[0]}", "text": skill[1], "score": float(skill_scores[i]), "type": "skill"})
 
-    if accomplishments:
-        accomplishment_embeddings = np.array([json.loads(a[2]) for a in accomplishments])
-        # Compute cosine similarity for accomplishments
-        accomplishment_scores = util.cos_sim(job_embedding, accomplishment_embeddings)[0]
-        for i, acc in enumerate(accomplishments):
-            all_items.append({"id": f"acc-{acc[0]}", "text": acc[1], "score": float(accomplishment_scores[i]), "type": "accomplishment"})
+    def process_items(items, item_type, get_text, get_embedding):
+        if not items:
+            return
+        
+        embeddings = np.array([json.loads(get_embedding(item)) for item in items if get_embedding(item)]).astype(np.float32)
+        if embeddings.size == 0:
+            return
 
-    if summaries:
-        summary_embeddings = np.array([json.loads(s[2]) for s in summaries])
-        summary_scores = util.cos_sim(job_embedding, summary_embeddings)[0]
-        for i, summ in enumerate(summaries):
-            all_items.append({"id": f"summ-{summ[0]}", "text": summ[1], "score": float(summary_scores[i]), "type": "summary"})
+        scores = util.cos_sim(job_embedding, embeddings)[0]
+        for i, item in enumerate(items):
+            if get_embedding(item):
+                all_items.append({
+                    "id": f"{item_type}-{item[0]}",
+                    "text": get_text(item),
+                    "score": float(scores[i]),
+                    "type": item_type
+                })
 
-    if experiences:
-        experience_embeddings = np.array([json.loads(e[3]) for e in experiences])
-        experience_scores = util.cos_sim(job_embedding, experience_embeddings)[0]
-        for i, exp in enumerate(experiences):
-            # The text for an experience is its description
-            all_items.append({"id": f"exp-{exp[0]}", "text": f"{exp[1]}: {exp[2]}", "score": float(experience_scores[i]), "type": "experience"})
+    process_items(skills, 'skill', lambda item: item[1], lambda item: item[2])
+    process_items(accomplishments, 'accomplishment', lambda item: item[1], lambda item: item[2])
+    process_items(summaries, 'summary', lambda item: item[1], lambda item: item[2])
+    process_items(experiences, 'experience', lambda item: f"{item[1]} at {item[2]}", lambda item: item[4])
+    process_items(educations, 'education', lambda item: f"{item[1]}, {item[2]}", lambda item: item[3])
+    process_items(projects, 'project', lambda item: item[1], lambda item: item[4])
 
-
-    # 6. Sort all items by score in descending order
+    # Sort all items by score in descending order
     sorted_items = sorted(all_items, key=lambda x: x['score'], reverse=True)
 
-    # 7. Return the top N results
+    # Return the top N results
     return jsonify(sorted_items[:top_n])
 
 
@@ -524,11 +693,11 @@ def export_pdf():
 
     experience_html = ''
     for exp in resume_data.get('experience', []):
-        accomplishments_html = ''.join([f'<li style="margin-bottom: 5px;">{acc["accomplishment_text"]}</li>' for acc in resume_data.get('accomplishments', []) if acc["work_experience_id"] == exp["id"]])
+        accomplishments_html = ''.join([f'<li style="margin-bottom: 5px;">{acc["accomplishment_text"]}</li>' for acc in resume_data.get('accomplishments', []) if acc.get("work_experience_id") == exp.get("id")])
         experience_html += f"""
         <div style="margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between;">
-                <h4 style="margin: 0; font-size: 1.1em;">{exp.get('jobTitle', '')}</h4>
+                <h4 style="margin: 0; font-size: 1.1em;">{exp.get('job_title', '')}</h4>
                 <p style="margin: 0;">{exp.get('dates', '')}</p>
             </div>
             <div style="display: flex; justify-content: space-between;">
@@ -539,6 +708,21 @@ def export_pdf():
             <ul>{accomplishments_html}</ul>
         </div>
         """
+
+    education_html = ''
+    for edu in resume_data.get('education', []):
+        education_html += f"<p>{edu.get('degree', '')} - {edu.get('institution', '')}</p>"
+
+    projects_html = ''
+    for proj in resume_data.get('projects', []):
+        projects_html += f"""
+        <div style="margin-bottom: 15px;">
+            <h4 style="margin: 0; font-size: 1.1em;">{proj.get('project_name', '')}</h4>
+            <p style="margin-top: 5px;">{proj.get('description', '').replace('/n', '<br/>')}</p>
+            <p><b>Tools:</b> {proj.get('tools', '')}</p>
+        </div>
+        """
+
 
     html_content = f"""
     <html>
@@ -568,6 +752,16 @@ def export_pdf():
         <div>
             <h3>Work Experience</h3>
             {experience_html}
+        </div>
+        <hr>
+        <div>
+            <h3>Technical Projects</h3>
+            {projects_html}
+        </div>
+        <hr>
+        <div>
+            <h3>Education</h3>
+            {education_html}
         </div>
     </body>
     </html>
