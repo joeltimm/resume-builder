@@ -1,5 +1,3 @@
-
-
 # **The Digital Handshake: A Comprehensive Guide to Crafting Resumes for the Modern AI Recruitment Landscape**
 
 ## **Part I: The New Frontier of Hiring: Understanding the Technology**
@@ -196,7 +194,7 @@ The following five examples demonstrate fully optimized, one-page resumes tailor
 ##### **Optimized Resume: Data Analyst**
 
 JANE DOE  
-(123) 456-7890 | jane.doe@email.com | linkedin.com/in/janedoe | San Francisco, CA  
+(123) 456-7890 | <jane.doe@email.com> | linkedin.com/in/janedoe | San Francisco, CA  
 Professional Summary  
 Data Analyst with 4+ years of experience transforming complex datasets into actionable business insights. Proficient in SQL, Python, and R, with advanced expertise in creating interactive dashboards in Tableau and Power BI. Proven ability to lead data cleaning initiatives, perform statistical analysis, and communicate findings to stakeholders to drive strategic decision-making and improve operational efficiency by over 15%.  
 **Annotation:** The summary immediately uses the target job title ("Data Analyst") and incorporates top keywords from the job description: "SQL," "Python," "R," "Tableau," "Power BI," "statistical analysis," and "stakeholders." It ends with a powerful, quantified achievement (15% efficiency improvement) to grab attention.
@@ -222,7 +220,7 @@ Bachelor of Science in Statistics | University of California, Berkeley | Berkele
 
 * Minor in Computer Science
 
-**Technical Skills**
+#### Technical Skills
 
 * **Programming Languages:** Python (Pandas, NumPy, Scikit-learn), R, SQL  
 * **Data Visualization:** Tableau, Power BI, Microsoft Excel (Advanced, including Pivot Tables, VLOOKUP)  
@@ -256,7 +254,7 @@ Bachelor of Science in Statistics | University of California, Berkeley | Berkele
 ##### **Optimized Resume: Marketing Manager**
 
 JOHN SMITH  
-(987) 654-3210 | john.smith@email.com | linkedin.com/in/johnsmith | New York, NY  
+(987) 654-3210 | <john.smith@email.com> | linkedin.com/in/johnsmith | New York, NY  
 Professional Summary  
 Strategic Marketing Manager with 7 years of experience developing and executing data-driven, multi-channel marketing strategies that increase brand awareness and drive revenue growth. Proven leader with expertise in SEO, SEM, and social media marketing, skilled in managing a $1M+ marketing budget and leading high-performing teams. Successfully increased lead generation by 45% through targeted digital marketing campaigns.  
 **Annotation:** The summary immediately establishes John as a "Marketing Manager" and integrates key qualifications: "data-driven," "multi-channel marketing," "SEO," "SEM," "social media marketing," and "budget" management. The 45% lead generation increase is a powerful, quantifiable hook.
@@ -456,7 +454,7 @@ Bachelor of Science in Nursing (BSN) | University of Texas at Austin | Austin, T
 
 **Annotation:** A dedicated "Licenses & Certifications" section is crucial for healthcare roles. It clearly lists all required credentials, including license numbers and expiration dates where appropriate, making it easy for an ATS or compliance manager to verify qualifications.63
 
-#### Skills
+#### Skills -
 
 * **Clinical Skills:** Patient Assessment, Medication Administration, Wound Care, IV Therapy, Telemetry Monitoring  
 * **Systems:** Epic EHR, Microsoft Office Suite  
@@ -477,12 +475,14 @@ The following three examples illustrate the transformation of a poorly construct
 A career changer's biggest challenge is demonstrating the relevance of past experience to a new field. A generic or poorly structured resume will fail to connect the dots for an AI screener, resulting in a low match score.
 
 | Before: Poorly Optimized
+
 | Before: Poorly Optimized | After: Well-Optimized |
 | :---- | :---- |
-| **DAVID CHEN** 123 Main St, Anytown, USA david.chen@email.com | **DAVID CHEN** (555) 555-5555 david.chen@email.com linkedin.com/in/davidchenpm |
+| **DAVID CHEN** 123 Main St, Anytown, USA <david.chen@email.com> | **DAVID CHEN** (555) 555-5555 <david.chen@email.com> linkedin.com/in/davidchenpm |
 | **Objective** Seeking to leverage my experience in a challenging new role in project management where I can contribute to a dynamic team. | **Professional Summary: Transitioning to Project Management** Results-oriented professional with 8 years of experience in marketing campaign management, successfully leading cross-functional teams to deliver complex initiatives on time and within budget. Seeking to leverage proven expertise in stakeholder communication, risk mitigation, and resource allocation to transition into a formal Project Manager role. PMP certification in progress. |
-| **Skills** • Team player • Hardworking • Good at communication • Microsoft Office • Social Media | **Skills** • **Project Management:** Stakeholder Communication, Risk Mitigation, Budget Tracking, Resource Allocation, Scope Management • **Methodologies:** Agile (proficient), Waterfall • **Software:** Asana, Trello, Microsoft Office Suite • **Marketing:** Digital Campaign Management, SEO |
-| **Experience** Marketing Manager, Creative Inc. 2016 - Present • Responsible for managing marketing campaigns. • Worked with designers and writers. • Handled the marketing budget. • Gave presentations to leadership. | **Professional Experience** **Marketing Manager** | Creative Inc. | Anytown, USA | 2016 – Present • Led 20+ multi-channel marketing projects annually, coordinating cross-functional teams of 8+ designers, writers, and analysts to ensure delivery on strict deadlines. • Managed project budgets up to $250K, tracking all expenses and reallocating resources to reduce costs by 10% on average. • Identified and mitigated potential campaign risks (e.g., vendor delays, scope creep), developing contingency plans that prevented any missed launch dates over 4 years. • Served as the primary point of contact for senior leadership stakeholders, providing weekly progress reports and aligning project execution with strategic business goals. |
+| **Skills** • Team player • Hardworking • Good at communication • Microsoft Office • Social Media | **Skills** • **Project Management:** Stakeholder Communication, Risk Mitigation, Budget Tracking, Resource Allocation, Scope Management |
+|  | • **Methodologies:** Agile (proficient), Waterfall • **Software:** Asana, Trello, Microsoft Office Suite • **Marketing:** Digital Campaign Management, SEO |
+| **Experience** Marketing Manager, Creative Inc. 2016 - Present • Responsible for managing marketing campaigns. • Worked with designers and writers. • Handled the marketing budget. • Gave presentations to leadership. | **Professional Experience**  Marketing Manager | Creative Inc. 2016 – Present   | • Led 20+ multi-channel marketing projects annually, coordinating cross-functional teams of 8+ designers, writers, and analysts to ensure delivery on strict deadlines. • Managed project budgets up to $250K, tracking all expenses and reallocating resources to reduce costs by 10% on average. • Identified and mitigated potential campaign risks (e.g., vendor delays, scope creep), developing contingency plans that prevented any missed launch dates over 4 years. • Served as the primary point of contact for senior leadership stakeholders, providing weekly progress reports and aligning project execution with strategic business goals. |
 
 ##### **Analysis of Transformation**
 
@@ -523,7 +523,7 @@ Experienced professionals often have resumes that are too long, focus on a chron
 
 | Before: Poorly Optimized | After: Well-Optimized |
 | :---- | :---- |
-| **THOMAS MILLER** 123 Main St, Anytown, USA | **THOMAS MILLER, CPA** (555) 555-5555 | thomas.miller@email.com | [linkedin.com/in/thomasmillercpa](https://linkedin.com/in/thomasmillercpa) |
+| **THOMAS MILLER** 123 Main St, Anytown, USA | **THOMAS MILLER, CPA** (555) 555-5555 | <thomas.miller@email.com> | [linkedin.com/in/thomasmillercpa](https://linkedin.com/in/thomasmillercpa) |
 | (No Summary Section) | **Professional Summary** Certified Public Accountant (CPA) with 15+ years of experience in financial reporting, general ledger accounting, and process improvement for large-scale enterprises. Expert in GAAP and proficient with SAP and Oracle. Proven ability to streamline financial operations, enhance accuracy, and lead month-end closing processes that reduce cycle time by 20%. |
 | **Work Experience** Senior Accountant, Global Corp. 2010 \- Present • Responsible for month-end closing procedures. • Handled general ledger reconciliations. • Prepared financial statements. • Worked with external auditors. • Supervised junior accountants. ... (Continues for 3 pages) | **Professional Experience** **Senior Accountant** | Global Corp. | Anytown, USA | 2010 – Present • Led the month-end closing process, implementing a new workflow automation that reduced the closing cycle from 5 days to 4 days (a 20% improvement). • Managed the reconciliation of 50+ general ledger accounts monthly, identifying and resolving discrepancies to ensure 100% accuracy in financial reporting. • Prepared and analyzed monthly, quarterly, and annual financial statements in accordance with Generally Accepted Accounting Principles (GAAP). • Served as the primary liaison for external auditors during annual audits, preparing all necessary documentation and ensuring a seamless audit process with zero material findings. • Mentored and supervised a team of 2 junior accountants, improving team efficiency and reducing reporting errors by 15%. |
 | (Multiple previous roles listed with similar duty-based descriptions) | **Accountant** | Business Solutions Inc. | Anytown, USA | 2007 – 2010 • Performed daily accounting tasks, including accounts payable/receivable and bank reconciliations. • Assisted in the preparation of financial reports and supported the month-end close process. |
@@ -586,7 +586,7 @@ In conclusion, the modern job search is a complex interplay between human ambiti
 2. What is an Applicant Tracking System (ATS)? \- SAP, accessed September 18, 2025, [https://www.sap.com/products/hcm/recruiting-software/what-is-an-applicant-tracking-system.html](https://www.sap.com/products/hcm/recruiting-software/what-is-an-applicant-tracking-system.html)  
 3. Applicant Tracking System (ATS) \- BambooHR, accessed September 18, 2025, [https://www.bamboohr.com/resources/hr-glossary/applicant-tracking-system-ats](https://www.bamboohr.com/resources/hr-glossary/applicant-tracking-system-ats)  
 4. Streamline Your Recruitment: What an Applicant Tracking System Can Do for Your Business, accessed September 18, 2025, [https://power.atsondemand.com/streamline-your-recruitment-what-an-applicant-tracking-system-can-do-for-your-business/](https://power.atsondemand.com/streamline-your-recruitment-what-an-applicant-tracking-system-can-do-for-your-business/)  
-5. www.sap.com, accessed September 18, 2025, [https://www.sap.com/products/hcm/recruiting-software/what-is-an-applicant-tracking-system.html\#:\~:text=An%20ATS%20acts%20as%20a,on%20the%20most%20qualified%20applicants.](https://www.sap.com/products/hcm/recruiting-software/what-is-an-applicant-tracking-system.html#:~:text=An%20ATS%20acts%20as%20a,on%20the%20most%20qualified%20applicants.)  
+5. <www.sap.com>, accessed September 18, 2025, [https://www.sap.com/products/hcm/recruiting-software/what-is-an-applicant-tracking-system.html\#:\~:text=An%20ATS%20acts%20as%20a,on%20the%20most%20qualified%20applicants.](https://www.sap.com/products/hcm/recruiting-software/what-is-an-applicant-tracking-system.html#:~:text=An%20ATS%20acts%20as%20a,on%20the%20most%20qualified%20applicants.)  
 6. What Is an Applicant Tracking System? \- Oracle, accessed September 18, 2025, [https://www.oracle.com/human-capital-management/recruiting/what-is-applicant-tracking-system/](https://www.oracle.com/human-capital-management/recruiting/what-is-applicant-tracking-system/)  
 7. Applicant Tracking System Statistics (Updated for 2025\) \- SSR \- SelectSoftware Reviews, accessed September 18, 2025, [https://www.selectsoftwarereviews.com/blog/applicant-tracking-system-statistics](https://www.selectsoftwarereviews.com/blog/applicant-tracking-system-statistics)  
 8. What is an Applicant Tracking System (ATS)? A Full 2025 Guide \- Oleeo, accessed September 18, 2025, [https://www.oleeo.com/blog/what-is-an-applicant-tracking-system-ats/](https://www.oleeo.com/blog/what-is-an-applicant-tracking-system-ats/)  
@@ -607,7 +607,7 @@ In conclusion, the modern job search is a complex interplay between human ambiti
 23. What File Format Should You Use For Your Resume?, accessed September 18, 2025, [https://resumeworded.com/resume-file-format-key-advice](https://resumeworded.com/resume-file-format-key-advice)  
 24. PDF vs Word Resume: Which Format Will Get You Hired? \- ResuFit, accessed September 18, 2025, [https://www.resufit.com/blog/pdf-vs-word-resume-how-to-choose-the-best-format-for-job-applications/](https://www.resufit.com/blog/pdf-vs-word-resume-how-to-choose-the-best-format-for-job-applications/)  
 25. What file format should a resume be in? (.docx or .pdf) \- TechieCV, accessed September 18, 2025, [https://www.techiecv.com/writing-guide/faq/resume-file-format](https://www.techiecv.com/writing-guide/faq/resume-file-format)  
-26. www.evalcommunity.com, accessed September 18, 2025, [https://www.evalcommunity.com/resume-help/doc-vs-pdf-choosing-the-right-resume-format-for-ats-and-employment-success/\#:\~:text=If%20the%20ATS%20can't,safe%20to%20use%20this%20format.](https://www.evalcommunity.com/resume-help/doc-vs-pdf-choosing-the-right-resume-format-for-ats-and-employment-success/#:~:text=If%20the%20ATS%20can't,safe%20to%20use%20this%20format.)  
+26. <www.evalcommunity.com>, accessed September 18, 2025, [https://www.evalcommunity.com/resume-help/doc-vs-pdf-choosing-the-right-resume-format-for-ats-and-employment-success/\#:\~:text=If%20the%20ATS%20can't,safe%20to%20use%20this%20format.](https://www.evalcommunity.com/resume-help/doc-vs-pdf-choosing-the-right-resume-format-for-ats-and-employment-success/#:~:text=If%20the%20ATS%20can't,safe%20to%20use%20this%20format.)  
 27. A Guide to Adapting Your Resume for the Applicant Tracking System (ATS) \- Ohio Northern University, accessed September 18, 2025, [https://my.onu.edu/sites/default/files/applicant\_tracking\_system\_resume\_guide.pdf](https://my.onu.edu/sites/default/files/applicant_tracking_system_resume_guide.pdf)  
 28. You Need to Avoid These ATS Resume Formatting Mistakes \- Jobscan, accessed September 18, 2025, [https://www.jobscan.co/blog/ats-formatting-mistakes/](https://www.jobscan.co/blog/ats-formatting-mistakes/)  
 29. Resume Writing Tips: Do's and Don'ts, accessed September 18, 2025, [https://www.myperfectresume.com/career-center/resumes/dos-and-donts](https://www.myperfectresume.com/career-center/resumes/dos-and-donts)  
@@ -630,7 +630,7 @@ In conclusion, the modern job search is a complex interplay between human ambiti
 46. 32 Data Analyst Resume Examples & Guide for 2025 \- Enhancv, accessed September 18, 2025, [https://enhancv.com/resume-examples/data-analyst/](https://enhancv.com/resume-examples/data-analyst/)  
 47. 14 Common Resume Mistakes with Practical Fixes \- CCI Training Center, accessed September 18, 2025, [https://ccitraining.edu/blog/14-common-resume-mistakes-and-how-to-fix-them/](https://ccitraining.edu/blog/14-common-resume-mistakes-and-how-to-fix-them/)  
 48. Applying for Jobs But Getting Rejected? How to Get Past the AI, accessed September 18, 2025, [https://scottambler.com/aihiring-2/](https://scottambler.com/aihiring-2/)  
-49. www.jobscan.co, accessed September 18, 2025, [https://www.jobscan.co/blog/20-ats-friendly-resume-templates/\#:\~:text=When%20it%20comes%20to%20formatting,a%20chronological%20work%20history%20below.](https://www.jobscan.co/blog/20-ats-friendly-resume-templates/#:~:text=When%20it%20comes%20to%20formatting,a%20chronological%20work%20history%20below.)  
+49. <www.jobscan.co>, accessed September 18, 2025, [https://www.jobscan.co/blog/20-ats-friendly-resume-templates/\#:\~:text=When%20it%20comes%20to%20formatting,a%20chronological%20work%20history%20below.](https://www.jobscan.co/blog/20-ats-friendly-resume-templates/#:~:text=When%20it%20comes%20to%20formatting,a%20chronological%20work%20history%20below.)  
 50. 19 Data Analyst Resume Examples for 2025, accessed September 18, 2025, [https://resumeworded.com/data-analyst-resume-examples](https://resumeworded.com/data-analyst-resume-examples)  
 51. Senior Marketing Manager Resume Example \- Free to Edit ATS-Friendly PDF \- 2025, accessed September 18, 2025, [https://resumementor.com/blog/senior-marketing-manager-resume-examples/](https://resumementor.com/blog/senior-marketing-manager-resume-examples/)  
 52. 20 Best Marketing Manager Resume Examples and Templates for 2025, accessed September 18, 2025, [https://www.resumetemplates.com/marketing-manager-resume-examples/](https://www.resumetemplates.com/marketing-manager-resume-examples/)  

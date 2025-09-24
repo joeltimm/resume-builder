@@ -11,6 +11,7 @@ import click
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer, util # Import sentence-transformers
+import re
 
 # --- Initialization ---
 # Initialize the Flask application
@@ -607,12 +608,34 @@ def delete_technical_project(project_id):
     return jsonify({"message": "Technical project deleted successfully"})
 
 
-# --- NEW: API for AI Matching ---
+# --- NEW: Keyword Extraction Function ---
+def extract_keywords(text):
+    """Extracts potentially important keywords from text."""
+    # This is a simple implementation. More sophisticated methods exist.
+    stop_words = set([
+        "a", "an", "the", "and", "but", "or", "for", "in", "on", "at", "to", "with", 
+        "about", "of", "is", "are", "was", "were", "be", "been", "being", "have", 
+        "has", "had", "do", "does", "did", "will", "would", "should", "can", "could",
+        "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
+        "my", "your", "his", "its", "our", "their", "mine", "yours", "hers", "ours", "theirs"
+    ])
+    
+    words = re.findall(r'\b\w+\b', text.lower())
+    # Consider words that are longer than 2 characters and not stop words
+    keywords = [word for word in words if len(word) > 2 and word not in stop_words]
+    # Simple frequency count
+    freq_dist = {kw: keywords.count(kw) for kw in set(keywords)}
+    # Return keywords that appear more than once, sorted by frequency
+    return sorted([kw for kw, freq in freq_dist.items() if freq > 1], key=lambda kw: freq_dist[kw], reverse=True)
+
+
+# --- API for AI Matching ---
 
 @app.route('/api/match', methods=['POST'])
 def match_skills():
     """
-    Finds the most relevant skills and accomplishments for a given job description.
+    Finds the most relevant skills and accomplishments for a given job description
+    and provides an analysis of missing keywords.
     """
     data = request.json
     job_description = data.get('job_description')
@@ -674,10 +697,22 @@ def match_skills():
 
     # Sort all items by score in descending order
     sorted_items = sorted(all_items, key=lambda x: x['score'], reverse=True)
+    top_results = sorted_items[:top_n]
 
-    # Return the top N results
-    return jsonify(sorted_items[:top_n])
-
+    # 3. Analyze for missing keywords
+    job_keywords = set(extract_keywords(job_description))
+    resume_text = " ".join([item['text'] for item in top_results])
+    resume_words = set(re.findall(r'\b\w+\b', resume_text.lower()))
+    
+    missing_keywords = list(job_keywords - resume_words)
+    
+    # Return the top results and the analysis
+    return jsonify({
+        "results": top_results,
+        "analysis": {
+            "missing_keywords": missing_keywords[:10] # Limit to top 10 missing
+        }
+    })
 
 @app.route('/api/export-pdf', methods=['POST'])
 def export_pdf():
