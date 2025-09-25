@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.4.0/justgage.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         @keyframes flash {
@@ -16,8 +18,14 @@
         }
         .flash-success { animation: flash 0.5s ease-out; }
         .preview-content { word-wrap: break-word; overflow-wrap: break-word; }
+        /* Style for filter buttons */
         .filter-btn { transition: all 0.2s ease-in-out; }
         .filter-btn.active { background-color: #4f46e5; color: white; }
+        /* Style for the gauge */
+        #score-gauge {
+            width: 200px;
+            height: 160px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -46,27 +54,47 @@
                     
                     <div id="filter-container" class="mt-3 flex flex-wrap gap-2">
                         <button class="filter-btn active bg-gray-200 px-3 py-1 rounded-full text-sm" data-filter="all">All</button>
-                        <button class="filter-btn bg-gray-200 px-3 py-1 rounded-full text-sm" data-filter="summary">Summary</button>
                         <button class="filter-btn bg-gray-200 px-3 py-1 rounded-full text-sm" data-filter="skill">Skills</button>
                         <button class="filter-btn bg-gray-200 px-3 py-1 rounded-full text-sm" data-filter="accomplishment">Accomplishments</button>
+                        <button class="filter-btn bg-gray-200 px-3 py-1 rounded-full text-sm" data-filter="experience">Experience</button>
                         <button class="filter-btn bg-gray-200 px-3 py-1 rounded-full text-sm" data-filter="project">Projects</button>
-                        <button class="filter-btn bg-gray-200 px-3 py-1 rounded-full text-sm" data-filter="education">Education</button>
                     </div>
 
                     <div id="suggestions-container" class="mt-3 space-y-2 max-h-96 overflow-y-auto">
                         </div>
                 </div>
-                
-                <div id="resume-analysis-container" class="bg-white p-6 rounded-lg shadow-md mt-8">
-                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">Resume Analysis</h2>
-                    <div id="analysis-content">
-                        <p class="text-gray-500">Analyze a job description to see suggestions here.</p>
+
+                <div class="mb-6">
+                    <h3 class="text-xl font-semibold text-gray-700">3. Missing Keywords</h3>
+                    <p class="text-sm text-gray-500">Keywords from the job description that were not found in your resume data.</p>
+                    <div id="missing-keywords-container" class="mt-3 flex flex-wrap gap-2">
+                        <p class="text-gray-400">Analyze a job description to see missing keywords.</p>
                     </div>
                 </div>
-
+                
+                <div class="mb-6">
+                    <h3 class="text-xl font-semibold text-gray-700">4. AI Improvement Suggestions</h3>
+                    <p class="text-sm text-gray-500">Get suggestions to rephrase your accomplishments to better match the job description.</p>
+                    <div id="ai-suggestions-container" class="mt-3 space-y-2">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm text-blue-700">🚀 This feature is coming soon!</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="resume-preview-container" class="bg-white p-8 rounded-lg shadow-lg">
+                <div id="score-section" class="flex flex-col md:flex-row items-center justify-around mb-6 p-4 bg-gray-50 rounded-lg">
+                    <div id="score-gauge"></div>
+                    <div class="text-center md:text-left mt-4 md:mt-0">
+                        <h3 class="text-2xl font-bold text-gray-800">Match Score</h3>
+                        <p class="text-lg text-gray-600">
+                            Current Score: <span id="current-score" class="font-bold">0</span> / 
+                            Max Potential: <span id="max-score" class="font-bold">0</span>
+                        </p>
+                        <button id="select-best-btn" class="mt-2 bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors text-sm">Select Best Items</button>
+                     </div>
+                </div>
                  </div>
 
         </div>
@@ -78,46 +106,154 @@
        <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- Configuration ---
-            const API_URL_RESUME = 'http://100.120.237.30:5031/resume';
-            const API_URL_MATCH = 'http://100.120.237.30:5031/api/match';
             const API_BASE_URL = 'http://100.120.237.30:5031/api';
+            const API_URL_RESUME = 'http://100.120.237.30:5031/resume';
+            const API_URL_MATCH = `${API_BASE_URL}/match`;
+            const JOB_COLORS = ['#eff6ff', '#f0fdf4', '#fefce8', '#fff7ed', '#fdf2f8'];
 
             // --- DOM Element References ---
             const resumePreviewContainer = document.getElementById('resume-preview-container');
             const jobDescriptionInput = document.getElementById('job-description');
             const analyzeBtn = document.getElementById('analyze-btn');
             const suggestionsContainer = document.getElementById('suggestions-container');
+            const missingKeywordsContainer = document.getElementById('missing-keywords-container');
             const downloadPdfBtn = document.getElementById('download-pdf-btn');
             const filterContainer = document.getElementById('filter-container');
-            const analysisContent = document.getElementById('analysis-content');
+            const scoreGaugeEl = document.getElementById('score-gauge');
+            const currentScoreEl = document.getElementById('current-score');
+            const maxScoreEl = document.getElementById('max-score');
+            const selectBestBtn = document.getElementById('select-best-btn');
 
+            // --- State Variables ---
+            let personalDetails = {};
             let allWorkExperience = [];
             let allAccomplishments = [];
             let allEducation = [];
             let allProjects = [];
             let allSkills = [];
             let currentSuggestions = [];
-            let selectedIds = new Set();
-            let personalDetails = {};
+            let totalJobScore = 0;
+            let jobColorMap = {};
+            let colorIndex = 0;
+            let scoreGauge;
 
             // --- Core Functions ---
 
+            function initializeGauge() {
+                scoreGauge = new JustGage({
+                    id: 'score-gauge',
+                    value: 0,
+                    min: 0,
+                    max: 100,
+                    title: " ",
+                    label: "%",
+                    levelColors: ["#ef4444", "#f59e0b", "#10b981"],
+                    pointer: true,
+                    pointerOptions: {
+                        toplength: -15,
+                        bottomlength: 10,
+                        bottomwidth: 12,
+                        color: '#8e8e93'
+                    },
+                    gaugeWidthScale: 0.6,
+                    counter: true
+                });
+            }
+            
+            function updateScores() {
+                let currentScore = 0;
+                // This calculates the score based on the *semantic relevance* of selected items, not keyword matching.
+                // We'll calculate a theoretical "current score" based on the max score from the job description
+                // and the percentage of coverage from selected items. This is an estimation.
+                
+                const selectedSkills = new Set();
+                 document.querySelectorAll('.suggestion-checkbox:checked').forEach(checkbox => {
+                    const itemID = checkbox.id.replace('suggestion-', '');
+                    const item = currentSuggestions.find(s => s.id === itemID);
+                    if (item) {
+                        currentScore += item.score; // Summing up semantic scores
+                         if (item.type === 'skill') {
+                            selectedSkills.add(item.text.toLowerCase());
+                        }
+                    }
+                });
+
+                // The score percentage is the sum of semantic scores of selected items, normalized against the total possible score.
+                // This provides a "relevance density" score. We cap it at 100.
+                const scorePercentage = totalJobScore > 0 ? (currentScore / totalJobScore) * 100 : 0;
+
+                currentScoreEl.textContent = currentScore.toFixed(2);
+                maxScoreEl.textContent = totalJobScore.toFixed(2);
+                
+                scoreGauge.refresh(Math.min(scorePercentage, 100).toFixed(2));
+            }
+
+            function getJobColor(experienceId) {
+                if (!experienceId) return 'transparent';
+                if (!jobColorMap[experienceId]) {
+                    jobColorMap[experienceId] = JOB_COLORS[colorIndex % JOB_COLORS.length];
+                    colorIndex++;
+                }
+                return jobColorMap[experienceId];
+            }
+
+            function updateFilterButtons() {
+                document.querySelectorAll('.job-filter').forEach(btn => btn.remove());
+                const accomplishmentSuggestions = currentSuggestions.filter(s => s.type === 'accomplishment');
+                const uniqueJobIds = [...new Set(accomplishmentSuggestions.map(s => {
+                    const accomplishmentId = parseInt(s.id.split('-')[1]);
+                    const accomplishment = allAccomplishments.find(a => a.id === accomplishmentId);
+                    return accomplishment ? accomplishment.work_experience_id : null;
+                }))].filter(id => id !== null);
+                
+                uniqueJobIds.forEach(jobId => {
+                    const experience = allWorkExperience.find(exp => exp.id === jobId);
+                    if (experience) {
+                        const button = document.createElement('button');
+                        button.className = 'filter-btn job-filter bg-gray-200 px-3 py-1 rounded-full text-sm';
+                        button.dataset.filter = `exp-${jobId}`;
+                        button.textContent = experience.job_title;
+                        filterContainer.appendChild(button);
+                    }
+                });
+            }
+            
             function renderSuggestions(filter = 'all') {
                 suggestionsContainer.innerHTML = '';
-                const filteredSuggestions = filter === 'all' 
-                    ? currentSuggestions 
-                    : currentSuggestions.filter(item => item.type === filter);
+                let filteredSuggestions;
+                if (filter === 'all') {
+                    filteredSuggestions = currentSuggestions;
+                } else if (filter.startsWith('exp-')) {
+                    const expId = parseInt(filter.split('-')[1]);
+                    filteredSuggestions = currentSuggestions.filter(item => {
+                        if (item.type !== 'accomplishment') return false;
+                        const accId = parseInt(item.id.split('-')[1]);
+                        const accomplishment = allAccomplishments.find(a => a.id === accId);
+                        return accomplishment && accomplishment.work_experience_id === expId;
+                    });
+                } else {
+                    filteredSuggestions = currentSuggestions.filter(item => item.type === filter);
+                }
 
                 if (filteredSuggestions.length === 0 && currentSuggestions.length > 0) {
                     suggestionsContainer.innerHTML = '<p class="text-gray-500 p-4">No items of this type were found in the top results.</p>';
                     return;
                 }
                 
+                filteredSuggestions.sort((a, b) => {
+                    if (a.type === 'accomplishment' && b.type === 'accomplishment') {
+                        const accA = allAccomplishments.find(acc => acc.id === parseInt(a.id.split('-')[1]));
+                        const accB = allAccomplishments.find(acc => acc.id === parseInt(b.id.split('-')[1]));
+                        const idA = accA ? accA.work_experience_id : -1;
+                        const idB = accB ? accB.work_experience_id : -1;
+                        return idA - idB;
+                    }
+                    return 0;
+                });
+
                 filteredSuggestions.forEach(item => {
-                    if (item.type === 'experience') return;
-                    const scorePercentage = (item.score * 100).toFixed(0);
                     const container = document.createElement('div');
-                    container.className = 'suggestion-item flex items-start gap-3 p-3 border rounded-lg hover:bg-gray-50';
+                    container.className = 'suggestion-item flex items-start gap-3 p-3 border rounded-lg';
                     container.dataset.type = item.type;
 
                     const checkbox = document.createElement('input');
@@ -125,9 +261,6 @@
                     checkbox.id = `suggestion-${item.id}`;
                     checkbox.dataset.id = item.id.split('-')[1];
                     checkbox.className = 'suggestion-checkbox h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mt-1';
-                    if (selectedIds.has(item.id)) {
-                        checkbox.checked = true;
-                    }
                     
                     const labelDiv = document.createElement('div');
                     labelDiv.className = 'flex-grow';
@@ -139,14 +272,32 @@
                     
                     const metaDiv = document.createElement('div');
                     metaDiv.className = 'flex items-center gap-2 text-xs text-gray-500 mt-1';
-                    
                     const typeSpan = document.createElement('span');
                     typeSpan.textContent = item.type.charAt(0).toUpperCase() + item.type.slice(1);
                     typeSpan.className = 'bg-gray-200 px-2 py-0.5 rounded-full';
 
                     const scoreSpan = document.createElement('span');
-                    scoreSpan.textContent = `Match: ${scorePercentage}%`;
+                    scoreSpan.textContent = `Relevance: ${(item.score * 100).toFixed(0)}%`;
                     scoreSpan.className = 'font-semibold';
+                    
+                    if (item.type === 'accomplishment') {
+                        const accomplishmentId = parseInt(item.id.split('-')[1]);
+                        const accomplishment = allAccomplishments.find(a => a.id === accomplishmentId);
+                        if (accomplishment && accomplishment.work_experience_id) {
+                            const experience = allWorkExperience.find(exp => exp.id === accomplishment.work_experience_id);
+                            if (experience) {
+                                const jobSpan = document.createElement('span');
+                                jobSpan.textContent = `Job: ${experience.job_title}`;
+                                jobSpan.className = 'font-semibold';
+                                metaDiv.appendChild(jobSpan);
+                            }
+                            container.style.backgroundColor = getJobColor(accomplishment.work_experience_id);
+                        } else {
+                            container.style.backgroundColor = '#fafafa';
+                        }
+                    } else {
+                         container.style.backgroundColor = '#ffffff';
+                    }
 
                     metaDiv.appendChild(typeSpan);
                     metaDiv.appendChild(scoreSpan);
@@ -158,7 +309,21 @@
                 });
             }
 
+            function renderMissingKeywords(keywords) {
+                missingKeywordsContainer.innerHTML = '';
+                if (keywords.length === 0) {
+                    missingKeywordsContainer.innerHTML = '<p class="text-gray-500">No missing keywords found. Great job!</p>';
+                    return;
+                }
+                keywords.forEach(keyword => {
+                    const keywordSpan = document.createElement('span');
+                    keywordSpan.className = 'bg-red-100 text-red-800 px-2.5 py-1 rounded-full text-sm font-medium';
+                    keywordSpan.textContent = keyword;
+                    missingKeywordsContainer.appendChild(keywordSpan);
+                });
+            }
 
+            // --- MODIFIED: This function now handles the combined API response ---
             async function analyzeJobDescription() {
                 const jobDescription = jobDescriptionInput.value.trim();
                 if (!jobDescription) {
@@ -169,76 +334,73 @@
                 analyzeBtn.disabled = true;
                 analyzeBtn.textContent = 'Analyzing...';
                 suggestionsContainer.innerHTML = '<p class="text-gray-500 p-4">Searching for the best keywords...</p>';
-                analysisContent.innerHTML = '<p class="text-gray-500">Analyzing for suggestions...</p>';
-
+                missingKeywordsContainer.innerHTML = '<p class="text-gray-500">Analyzing for missing keywords...</p>';
+                
                 try {
+                    // Single API call to get all analysis data
                     const response = await fetch(API_URL_MATCH, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ job_description: jobDescription, limit: 20 })
+                        body: JSON.stringify({ job_description: jobDescription, limit: 25 })
                     });
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     
-                    const matchData = await response.json();
-                    currentSuggestions = matchData.results;
+                    const responseData = await response.json();
                     
+                    // Populate state variables from the single response object
+                    currentSuggestions = responseData.suggestions || [];
+                    totalJobScore = responseData.total_job_score || 0;
+                    const missingKeywords = responseData.missing_keywords || [];
+
+                    // Render all sections with the new data
                     if (currentSuggestions.length === 0) {
-                        suggestionsContainer.innerHTML = '<p class="text-gray-500 p-4">No matches found. Try adding more data or use a different job description.</p>';
+                        suggestionsContainer.innerHTML = '<p class="text-gray-500 p-4">No matches found in your data. Try adding more skills and accomplishments.</p>';
                     } else {
+                        jobColorMap = {};
+                        colorIndex = 0;
+                        updateFilterButtons();
                         renderSuggestions();
                     }
-
-                    renderAnalysis(matchData.analysis);
+                    
+                    renderMissingKeywords(missingKeywords);
+                    updateScores();
 
                 } catch (error) {
                     console.error('Error analyzing job description:', error);
                     suggestionsContainer.innerHTML = '<p class="text-red-500 p-4">Error: Could not analyze the job description. Please ensure the backend is running.</p>';
-                    analysisContent.innerHTML = '<p class="text-red-500">Could not generate analysis.</p>';
+                    missingKeywordsContainer.innerHTML = '<p class="text-red-500">Could not fetch missing keywords.</p>';
                 } finally {
                     analyzeBtn.disabled = false;
                     analyzeBtn.textContent = 'Analyze Description';
                 }
             }
             
-            function renderAnalysis(analysis) {
-                if (!analysis) {
-                    analysisContent.innerHTML = '<p class="text-gray-500">No analysis available.</p>';
-                    return;
-                }
-
-                const missingKeywordsHTML = analysis.missing_keywords.length > 0
-                    ? `
-                        <h3 class="text-lg font-semibold text-gray-800">Missing Keywords</h3>
-                        <div class="flex flex-wrap gap-2 mt-2">
-                            ${analysis.missing_keywords.map(kw => `<span class="bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-sm">${kw}</span>`).join('')}
-                        </div>
-                    `
-                    : '<p class="text-gray-500">No significant missing keywords found. Great job!</p>';
-                
-                // Placeholder for suggested edits
-                const suggestedEditsHTML = `
-                    <div class="mt-4">
-                        <h3 class="text-lg font-semibold text-gray-800">Suggested Edits</h3>
-                        <p class="text-gray-500 mt-2">AI-powered suggestions to improve your resume content will appear here in a future update.</p>
-                    </div>
-                `;
-
-                analysisContent.innerHTML = missingKeywordsHTML + suggestedEditsHTML;
+            function selectAllBest() {
+                document.querySelectorAll('.suggestion-checkbox').forEach(checkbox => {
+                    const itemID = checkbox.id.replace('suggestion-', '');
+                    const item = currentSuggestions.find(s => s.id === itemID);
+                    if (item && item.score > 0.5) { // Auto-select items with high relevance
+                        checkbox.checked = true;
+                    }
+                });
+                updateScores();
+                updatePreview();
             }
 
             function collectFormData() {
                 const selectedSkills = [];
                 const selectedAccomplishments = [];
                 let selectedSummary = '';
-                const selectedEducation = [];
+                const selectedExperience = [];
                 const selectedProjects = [];
-
-                selectedIds.forEach(itemID => {
+                
+                document.querySelectorAll('.suggestion-checkbox:checked').forEach(checkbox => {
+                    const itemID = checkbox.id.replace('suggestion-', '');
                     const originalItem = currentSuggestions.find(s => s.id === itemID);
                     if (!originalItem) return;
 
                     const type = originalItem.type;
-                    const id = parseInt(originalItem.id.split('-')[1], 10);
+                    const id = parseInt(checkbox.dataset.id, 10);
 
                     if (type === 'skill') {
                         selectedSkills.push(originalItem.text);
@@ -247,28 +409,30 @@
                         if (acc) selectedAccomplishments.push(acc);
                     } else if (type === 'summary') {
                         selectedSummary = originalItem.text;
-                    } else if (type === 'education') {
-                        const edu = allEducation.find(e => e.id === id);
-                        if (edu) selectedEducation.push(edu);
+                    } else if (type === 'experience') {
+                        const exp = allWorkExperience.find(e => e.id === id);
+                        if (exp) selectedExperience.push(exp);
                     } else if (type === 'project') {
                         const proj = allProjects.find(p => p.id === id);
                         if (proj) selectedProjects.push(proj);
                     }
                 });
 
+                if (selectedSkills.length > 0 && currentSuggestions.length > 0) {
+                    const skillScores = {};
+                    currentSuggestions.forEach(item => {
+                        if (item.type === 'skill') {
+                            skillScores[item.text] = item.score;
+                        }
+                    });
+                    selectedSkills.sort((a, b) => (skillScores[b] || 0) - (skillScores[a] || 0));
+                }
+
                 return {
-                    name: personalDetails.name || '',
-                    email: personalDetails.email || '',
-                    phone: personalDetails.phone || '',
-                    location: personalDetails.location || '',
-                    linkedin: personalDetails.linkedin || '',
-                    github: personalDetails.github || '',
-                    portfolio: personalDetails.portfolio || '',
                     summary: selectedSummary,
-                    experience: allWorkExperience,
+                    experience: selectedExperience,
                     skills: selectedSkills,
                     accomplishments: selectedAccomplishments,
-                    education: selectedEducation,
                     projects: selectedProjects
                 };
             }
@@ -283,7 +447,6 @@
                         fetch(`${API_BASE_URL}/technical_projects`),
                         fetch(`${API_BASE_URL}/skills`)
                     ]);
-
                     if (resumeRes.ok) {
                         personalDetails = await resumeRes.json();
                     }
@@ -301,7 +464,9 @@
             }
 
             function updatePreview() {
-                const data = collectFormData();
+                const selectedData = collectFormData();
+                const data = { ...personalDetails, ...selectedData };
+
                 const s = (str) => str || '';
                 const link = (url) => url ? url.replace(/^(https?:\/\/)?/, 'https://') : '';
                 
@@ -336,7 +501,7 @@
                                     <p class="text-sm font-semibold">${s(exp.company)}</p>
                                     <p class="text-sm text-gray-500">${s(exp.location)}</p>
                                 </div>
-                                <p class="text-sm mt-1 text-gray-700 preview-content">${s(exp.description).replace(/\n/g, '<br>')}</p>
+                                <p class="text-sm mt-2 pl-4 italic text-gray-600 preview-content">${s(exp.description).replace(/\n/g, '<br>')}</p>
                                 <ul class="list-disc list-inside space-y-1 text-sm text-gray-700 mt-2">${accomplishmentsHTML}</ul>
                             </div>`;
                     });
@@ -355,8 +520,8 @@
                 }
 
                 let educationHTML = '';
-                if (data.education && data.education.length > 0) {
-                    data.education.forEach(edu => {
+                if (allEducation && allEducation.length > 0) {
+                    allEducation.forEach(edu => {
                         educationHTML += `
                             <div class="mt-3">
                                 <h4 class="text-md font-bold">${s(edu.degree)}</h4>
@@ -365,7 +530,7 @@
                     });
                 }
 
-                resumePreviewContainer.innerHTML = `
+                const previewContent = `
                     <div class="text-center">
                         <h1 class="text-3xl font-bold">${s(data.name)}</h1>
                         <div class="flex justify-center gap-x-4 gap-y-1 flex-wrap text-sm mt-2 text-indigo-600">
@@ -389,13 +554,21 @@
                     </div>
                     <div class="mt-6">
                         <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Education</h3>
-                        ${educationHTML || '<p class="text-sm mt-2 text-gray-500">No education selected.</p>'}
+                        ${educationHTML || '<p class="text-sm mt-2 text-gray-500">No education data available.</p>'}
                     </div>
                 `;
+                const scoreSection = document.getElementById('score-section');
+                resumePreviewContainer.innerHTML = '';
+                resumePreviewContainer.appendChild(scoreSection);
+                const previewWrapper = document.createElement('div');
+                previewWrapper.innerHTML = previewContent;
+                resumePreviewContainer.appendChild(previewWrapper);
             }
             
             async function downloadPdf() {
-                const resumeData = collectFormData();
+                const selectedData = collectFormData();
+                const resumeData = { ...personalDetails, ...selectedData };
+                
                 downloadPdfBtn.disabled = true;
                 downloadPdfBtn.textContent = 'Generating PDF...';
                 try {
@@ -426,15 +599,14 @@
             // --- Event Listeners ---
             analyzeBtn.addEventListener('click', analyzeJobDescription);
             downloadPdfBtn.addEventListener('click', downloadPdf);
+            selectBestBtn.addEventListener('click', selectAllBest);
             
-            suggestionsContainer.addEventListener('change', (event) => {
-                if (event.target.classList.contains('suggestion-checkbox')) {
-                    const id = event.target.id.replace('suggestion-', '');
-                    if (event.target.checked) {
-                        selectedIds.add(id);
-                    } else {
-                        selectedIds.delete(id);
-                    }
+            const mainForm = document.querySelector('.lg\\:grid-cols-2');
+            mainForm.addEventListener('input', (event) => {
+                 if (event.target.classList.contains('suggestion-checkbox')) {
+                    updateScores();
+                    updatePreview();
+                } else if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
                     updatePreview();
                 }
             });
@@ -447,8 +619,8 @@
                     renderSuggestions(filter);
                 }
             });
-            
             // --- Initial Load ---
+            initializeGauge();
             loadData();
         });
     </script>

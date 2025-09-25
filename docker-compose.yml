@@ -15,13 +15,14 @@ services:
     # This links the .env file into the container, so the Python app can read it.
     env_file:
       - .env
-    # maps port 5001 on
+    # maps port 5031 on
     # the server (the host) to port 5001 inside the container.
     ports:
       - "5031:5001"
     volumes:
+      - ./backend:/app
       # Mounts the named volume 'model_cache' to the cache directory inside the container
-      - model_cache:/root/.cache
+      - sentence_transformer_cache:/root/.cache/torch
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,4 +61,4 @@ services:
 
 volumes:
   postgres_data:
-  model_cache:
+  sentence_transformer_cache:

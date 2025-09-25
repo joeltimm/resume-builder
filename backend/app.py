@@ -11,7 +11,7 @@ import click
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer, util # Import sentence-transformers
-import re
+import yake # --- NEW: Import the YAKE keyword extractor ---
 
 # --- Initialization ---
 # Initialize the Flask application
@@ -608,43 +608,37 @@ def delete_technical_project(project_id):
     return jsonify({"message": "Technical project deleted successfully"})
 
 
-# --- NEW: Keyword Extraction Function ---
-def extract_keywords(text):
-    """Extracts potentially important keywords from text."""
-    # This is a simple implementation. More sophisticated methods exist.
-    stop_words = set([
-        "a", "an", "the", "and", "but", "or", "for", "in", "on", "at", "to", "with", 
-        "about", "of", "is", "are", "was", "were", "be", "been", "being", "have", 
-        "has", "had", "do", "does", "did", "will", "would", "should", "can", "could",
-        "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
-        "my", "your", "his", "its", "our", "their", "mine", "yours", "hers", "ours", "theirs"
-    ])
-    
-    words = re.findall(r'\b\w+\b', text.lower())
-    # Consider words that are longer than 2 characters and not stop words
-    keywords = [word for word in words if len(word) > 2 and word not in stop_words]
-    # Simple frequency count
-    freq_dist = {kw: keywords.count(kw) for kw in set(keywords)}
-    # Return keywords that appear more than once, sorted by frequency
-    return sorted([kw for kw, freq in freq_dist.items() if freq > 1], key=lambda kw: freq_dist[kw], reverse=True)
-
-
-# --- API for AI Matching ---
+# --- MODIFIED: API for AI Matching ---
 
 @app.route('/api/match', methods=['POST'])
 def match_skills():
     """
-    Finds the most relevant skills and accomplishments for a given job description
-    and provides an analysis of missing keywords.
+    Finds the most relevant skills and accomplishments for a given job description,
+    and also identifies keywords from the job description that are missing from the user's skills.
     """
     data = request.json
     job_description = data.get('job_description')
-    top_n = data.get('limit', 20) 
+    top_n = data.get('limit', 25) 
 
     if not job_description:
         return jsonify({"error": "Job description is required"}), 400
 
-    # 1. Generate embedding for the job description
+    # --- 1. Keyword Extraction and Scoring ---
+    # Use YAKE to extract important phrases from the job description.
+    # We'll extract up to 30 1- and 2-word phrases.
+    kw_extractor = yake.KeywordExtractor(top=30, n=2)
+    keywords_from_job_with_scores = kw_extractor.extract_keywords(job_description)
+    
+    # YAKE scores are "lower is better", so we invert them to get a conventional score.
+    # We create a map of lowercase keywords to their calculated score.
+    max_yake_score = max(s for _, s in keywords_from_job_with_scores) if keywords_from_job_with_scores else 1.0
+    keywords_from_job_map = {kw.lower(): (max_yake_score - s) for kw, s in keywords_from_job_with_scores}
+    
+    # The total potential score for this job description is the sum of all keyword scores.
+    total_job_score = sum(keywords_from_job_map.values())
+
+    # --- 2. Semantic Matching ---
+    # Generate an embedding for the entire job description for semantic similarity comparison.
     job_embedding = model.encode(job_description, convert_to_tensor=True)
 
     conn = get_db_connection()
@@ -652,7 +646,7 @@ def match_skills():
         return jsonify({"error": "Database connection failed"}), 500
     cur = conn.cursor()
 
-    # 2. Fetch all items from the database
+    # Fetch all user data for comparison
     cur.execute('SELECT id, skill_text, embedding FROM skills;')
     skills = cur.fetchall()
     cur.execute('SELECT id, accomplishment_text, embedding FROM accomplishments;')
@@ -665,28 +659,39 @@ def match_skills():
     educations = cur.fetchall()
     cur.execute('SELECT id, project_name, description, tools, embedding FROM technical_projects;')
     projects = cur.fetchall()
+    
+    # --- 3. Find Missing Keywords ---
+    # Compare the set of keywords from the job with the user's set of skills.
+    user_skills_set = {skill[1].lower() for skill in skills}
+    job_keywords_set = set(keywords_from_job_map.keys())
+    missing_keywords = list(job_keywords_set - user_skills_set)
+    
     cur.close()
     conn.close()
 
+    # --- 4. Calculate Relevance Scores for All User Data ---
     all_items = []
 
     def process_items(items, item_type, get_text, get_embedding):
-        if not items:
-            return
+        if not items: return
         
-        embeddings = np.array([json.loads(get_embedding(item)) for item in items if get_embedding(item)]).astype(np.float32)
-        if embeddings.size == 0:
-            return
+        # Filter out items that don't have a valid embedding
+        valid_items = [item for item in items if get_embedding(item) and get_embedding(item).strip()]
+        if not valid_items: return
+            
+        embeddings = np.array([json.loads(get_embedding(item)) for item in valid_items]).astype(np.float32)
+        if embeddings.size == 0: return
 
+        # Calculate cosine similarity between job description and each item
         scores = util.cos_sim(job_embedding, embeddings)[0]
-        for i, item in enumerate(items):
-            if get_embedding(item):
-                all_items.append({
-                    "id": f"{item_type}-{item[0]}",
-                    "text": get_text(item),
-                    "score": float(scores[i]),
-                    "type": item_type
-                })
+
+        for i, item in enumerate(valid_items):
+            all_items.append({
+                "id": f"{item_type}-{item[0]}",
+                "text": get_text(item),
+                "score": float(scores[i]), # The score here is semantic relevance (0 to 1)
+                "type": item_type
+            })
 
     process_items(skills, 'skill', lambda item: item[1], lambda item: item[2])
     process_items(accomplishments, 'accomplishment', lambda item: item[1], lambda item: item[2])
@@ -695,24 +700,17 @@ def match_skills():
     process_items(educations, 'education', lambda item: f"{item[1]}, {item[2]}", lambda item: item[3])
     process_items(projects, 'project', lambda item: item[1], lambda item: item[4])
 
-    # Sort all items by score in descending order
+    # Sort all user items by their relevance score
     sorted_items = sorted(all_items, key=lambda x: x['score'], reverse=True)
-    top_results = sorted_items[:top_n]
 
-    # 3. Analyze for missing keywords
-    job_keywords = set(extract_keywords(job_description))
-    resume_text = " ".join([item['text'] for item in top_results])
-    resume_words = set(re.findall(r'\b\w+\b', resume_text.lower()))
-    
-    missing_keywords = list(job_keywords - resume_words)
-    
-    # Return the top results and the analysis
+    # --- 5. Return the Combined Response ---
+    # The frontend will receive an object with all the data it needs.
     return jsonify({
-        "results": top_results,
-        "analysis": {
-            "missing_keywords": missing_keywords[:10] # Limit to top 10 missing
-        }
+        "suggestions": sorted_items[:top_n],
+        "total_job_score": total_job_score,
+        "missing_keywords": missing_keywords
     })
+
 
 @app.route('/api/export-pdf', methods=['POST'])
 def export_pdf():
@@ -722,6 +720,16 @@ def export_pdf():
     """
     resume_data = request.json
 
+    # --- Fetch Education Data from DB ---
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    cur = conn.cursor()
+    cur.execute('SELECT degree, institution FROM education ORDER BY id;')
+    education_entries = cur.fetchall()
+    cur.close()
+    conn.close()
+
     # --- 1. Format the data into an HTML string ---
     # This is a simple template. You can make this as complex and stylish as you want.
     skills_html = ''.join([f'<span style="background-color: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">{skill}</span>' for skill in resume_data.get('skills', [])])
@@ -729,24 +737,30 @@ def export_pdf():
     experience_html = ''
     for exp in resume_data.get('experience', []):
         accomplishments_html = ''.join([f'<li style="margin-bottom: 5px;">{acc["accomplishment_text"]}</li>' for acc in resume_data.get('accomplishments', []) if acc.get("work_experience_id") == exp.get("id")])
+        
+        description_html = ''
+        if exp.get('description'):
+            description_html = f"""
+            <div style="margin-left: 20px; font-style: italic; font-size: 0.9em; color: #555;">
+                 <p>{exp.get('description', '').replace('/n', '<br>')}</p>
+            </div>
+            """
+
         experience_html += f"""
         <div style="margin-bottom: 15px;">
-            <div style="display: flex; justify-content: space-between;">
-                <h4 style="margin: 0; font-size: 1.1em;">{exp.get('job_title', '')}</h4>
-                <p style="margin: 0;">{exp.get('dates', '')}</p>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <h4 style="margin: 0; font-size: 1.1em; font-weight: bold;">{exp.get('job_title', '')} | {exp.get('company', '')} - {exp.get('location', '')}</h4>
+                <p style="margin: 0; font-style: italic;">{exp.get('dates', '')}</p>
             </div>
-            <div style="display: flex; justify-content: space-between;">
-                <p style="margin: 0; font-style: italic;">{exp.get('company', '')}</p>
-                <p style="margin: 0;">{exp.get('location', '')}</p>
-            </div>
-            <p style="margin-top: 5px;">{exp.get('description', '').replace('/n', '<br/>')}</p>
-            <ul>{accomplishments_html}</ul>
+            {description_html}
+            <ul style="margin-top: 5px; list-style-position: inside;">{accomplishments_html}</ul>
         </div>
         """
 
     education_html = ''
-    for edu in resume_data.get('education', []):
-        education_html += f"<p>{edu.get('degree', '')} - {edu.get('institution', '')}</p>"
+    for degree, institution in education_entries:
+        education_html += f"<p>{degree} - {institution}</p>"
+
 
     projects_html = ''
     for proj in resume_data.get('projects', []):
