@@ -6,3 +6,9 @@ Flask-Cors
 sentence-transformers
 requests
 yake
+nltk
+scikit-learn
+numpy
+anthropic
+rapidfuzz
+click

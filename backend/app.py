@@ -8,10 +8,21 @@ import numpy as np # Import numpy for array operations
 import requests
 import io
 import click
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer, util # Import sentence-transformers
-import yake # --- NEW: Import the YAKE keyword extractor ---
+import yake
+import nltk
+from scoring_logic import calculate_weighted_match_score
+from llm_integration import improve_resume_bullet, find_duplicate_entries, get_available_models
+from resume_generator import generate_ats_resume_text
+
+# Download required NLTK data for text processing
+try:
+    nltk.download('punkt', quiet=True)
+    nltk.download('stopwords', quiet=True)
+except Exception as e:
+    print(f"Warning: Could not download NLTK data: {e}")
 
 # --- Initialization ---
 # Initialize the Flask application
@@ -711,6 +722,20 @@ def match_skills():
         "missing_keywords": missing_keywords
     })
 
+@app.route('/calculate-score', methods=['POST'])
+def get_score():
+    data = request.get_json()
+    resume_text = data.get('resumeText')
+    jd_text = data.get('jobDescriptionText')
+    
+    if not resume_text or not jd_text:
+        return jsonify({"error": "Missing resume or job description text"}), 400
+        
+    # This single call replaces all your old, incorrect calculations.
+    score_data_json = calculate_weighted_match_score(resume_text, jd_text)
+    
+    # The function returns a JSON string, so we parse it back to a dict for the response
+    return jsonify(json.loads(score_data_json))
 
 @app.route('/api/export-pdf', methods=['POST'])
 def export_pdf():
@@ -835,6 +860,77 @@ def export_pdf():
     except requests.exceptions.RequestException as e:
         print(f"Error calling Stirling-PDF: {e}")
         return jsonify({"error": "Failed to generate PDF"}), 500
+
+@app.route('/api/models', methods=['GET'])
+def get_llm_models():
+    """Get available LLM models based on current LLM_MODE."""
+    llm_mode = os.environ.get("LLM_MODE", "production").lower()
+
+    if llm_mode == "local":
+        try:
+            models = get_available_models()
+            default_model = os.environ.get("LM_STUDIO_DEFAULT_MODEL", "qwen2.5-32b-instruct")
+            return jsonify({
+                "mode": "local",
+                "models": models,
+                "default_model": default_model,
+                "lm_studio_url": os.environ.get("LM_STUDIO_URL", "http://100.98.99.49:6969")
+            })
+        except Exception as e:
+            return jsonify({"error": f"Failed to fetch models: {str(e)}"}), 500
+    else:
+        return jsonify({
+            "mode": "production",
+            "models": ["claude-3-sonnet-20240229"],
+            "default_model": "claude-3-sonnet-20240229"
+        })
+
+@app.route('/improve-bullet', methods=['POST'])
+def get_improved_bullet():
+    data = request.get_json()
+    bullet = data.get('bulletPoint')
+    job_title = data.get('jobTitle')
+    industry = data.get('industry')
+    model_name = data.get('modelName')  # Optional model selection
+
+    if not all([bullet, job_title, industry]):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    improved_bullet = improve_resume_bullet(bullet, job_title, industry, model_name)
+
+    return jsonify({
+        "improved_bullet": improved_bullet,
+        "model_used": model_name or "default",
+        "llm_mode": os.environ.get("LLM_MODE", "production")
+    })
+
+@app.route('/check-duplicates', methods=['POST'])
+def check_for_duplicates():
+    data = request.get_json()
+    bullet_points = data.get('bulletPoints')
+
+    if not isinstance(bullet_points, list):
+        return jsonify({"error": "Expected a list of bullet points"}), 400
+
+    duplicate_data = find_duplicate_entries(bullet_points)
+    
+    return jsonify({"duplicates": duplicate_data})
+
+@app.route('/generate-ats-resume', methods=['POST'])
+def create_ats_resume():
+    resume_data = request.get_json() # This should be the structured data from your front end
+
+    if not resume_data:
+        return jsonify({"error": "No resume data provided"}), 400
+    
+    ats_text = generate_ats_resume_text(resume_data)
+    
+    # Return as plain text, which the front end can handle for download
+    return Response(
+        ats_text,
+        mimetype="text/plain",
+        headers={"Content-disposition": "attachment; filename=ats_resume.txt"}
+    )
 
 if __name__ == '__main__':
     app.run(debug=True)

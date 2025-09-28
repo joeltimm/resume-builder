@@ -75,9 +75,24 @@
                 <div class="mb-6">
                     <h3 class="text-xl font-semibold text-gray-700">4. AI Improvement Suggestions</h3>
                     <p class="text-sm text-gray-500">Get suggestions to rephrase your accomplishments to better match the job description.</p>
+
+                    <!-- Model Selection -->
+                    <div class="mt-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                        <div class="flex items-center gap-2">
+                            <label for="model-select" class="text-sm font-medium text-gray-700">Model:</label>
+                            <select id="model-select" class="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                                <option value="">Loading models...</option>
+                            </select>
+                        </div>
+                        <span id="llm-mode-indicator" class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600"></span>
+                    </div>
+
                     <div id="ai-suggestions-container" class="mt-3 space-y-2">
                         <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p class="text-sm text-blue-700">🚀 This feature is coming soon!</p>
+                            <p class="text-sm text-blue-700">💡 Select accomplishments above and click "Improve with AI" to get enhanced versions tailored to this job.</p>
+                            <button id="improve-selected-btn" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm" disabled>
+                                Improve Selected with AI
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -123,6 +138,10 @@
             const currentScoreEl = document.getElementById('current-score');
             const maxScoreEl = document.getElementById('max-score');
             const selectBestBtn = document.getElementById('select-best-btn');
+            const modelSelect = document.getElementById('model-select');
+            const llmModeIndicator = document.getElementById('llm-mode-indicator');
+            const improveSelectedBtn = document.getElementById('improve-selected-btn');
+            const aiSuggestionsContainer = document.getElementById('ai-suggestions-container');
 
             // --- State Variables ---
             let personalDetails = {};
@@ -138,6 +157,120 @@
             let scoreGauge;
 
             // --- Core Functions ---
+
+            async function loadAvailableModels() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/models`);
+                    const data = await response.json();
+
+                    // Update mode indicator
+                    llmModeIndicator.textContent = data.mode === 'local' ? '🖥️ Local LM Studio' : '☁️ Production Claude';
+                    llmModeIndicator.className = data.mode === 'local' ?
+                        'text-xs px-2 py-1 rounded-full bg-green-100 text-green-700' :
+                        'text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700';
+
+                    // Populate model dropdown
+                    modelSelect.innerHTML = '';
+                    if (data.models && data.models.length > 0) {
+                        data.models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model;
+                            option.textContent = model;
+                            if (model === data.default_model) {
+                                option.selected = true;
+                            }
+                            modelSelect.appendChild(option);
+                        });
+                        improveSelectedBtn.disabled = false;
+                    } else {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = 'No models available';
+                        modelSelect.appendChild(option);
+                        improveSelectedBtn.disabled = true;
+                    }
+                } catch (error) {
+                    console.error('Error loading models:', error);
+                    llmModeIndicator.textContent = '❌ Error loading models';
+                    llmModeIndicator.className = 'text-xs px-2 py-1 rounded-full bg-red-100 text-red-700';
+                }
+            }
+
+            async function improveSelectedAccomplishments() {
+                const selectedCheckboxes = document.querySelectorAll('.suggestion-checkbox:checked');
+                const jobDescription = jobDescriptionInput.value.trim();
+                const selectedModel = modelSelect.value;
+
+                if (selectedCheckboxes.length === 0) {
+                    alert('Please select at least one accomplishment to improve.');
+                    return;
+                }
+
+                if (!jobDescription) {
+                    alert('Please analyze a job description first.');
+                    return;
+                }
+
+                improveSelectedBtn.disabled = true;
+                improveSelectedBtn.textContent = 'Improving...';
+
+                // Clear previous suggestions
+                const existingSuggestions = aiSuggestionsContainer.querySelectorAll('.ai-improvement');
+                existingSuggestions.forEach(el => el.remove());
+
+                for (const checkbox of selectedCheckboxes) {
+                    const itemID = checkbox.id.replace('suggestion-', '');
+                    const item = currentSuggestions.find(s => s.id === itemID);
+
+                    if (item && item.type === 'accomplishment') {
+                        try {
+                            const response = await fetch(`${API_BASE_URL.replace('/api', '')}/improve-bullet`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({
+                                    bulletPoint: item.text,
+                                    jobTitle: 'Software Engineer', // Could extract from job description
+                                    industry: 'Technology', // Could extract from job description
+                                    modelName: selectedModel
+                                })
+                            });
+
+                            const result = await response.json();
+                            displayImprovement(item.text, result.improved_bullet, result.model_used);
+                        } catch (error) {
+                            console.error('Error improving bullet:', error);
+                            displayImprovement(item.text, `Error: ${error.message}`, 'error');
+                        }
+                    }
+                }
+
+                improveSelectedBtn.disabled = false;
+                improveSelectedBtn.textContent = 'Improve Selected with AI';
+            }
+
+            function displayImprovement(originalText, improvedText, modelUsed) {
+                const improvementDiv = document.createElement('div');
+                improvementDiv.className = 'ai-improvement p-4 border border-gray-200 rounded-lg bg-white shadow-sm';
+                improvementDiv.innerHTML = `
+                    <div class="mb-2">
+                        <span class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">Model: ${modelUsed}</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Original:</h4>
+                            <p class="text-sm text-gray-600 bg-gray-50 p-2 rounded">${originalText}</p>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-medium text-green-700 mb-1">AI Improved:</h4>
+                            <p class="text-sm text-green-800 bg-green-50 p-2 rounded">${improvedText}</p>
+                        </div>
+                        <button class="text-xs text-blue-600 hover:text-blue-800 underline copy-btn" data-text="${improvedText}">
+                            Copy Improved Version
+                        </button>
+                    </div>
+                `;
+                aiSuggestionsContainer.appendChild(improvementDiv);
+            }
 
             function initializeGauge() {
                 scoreGauge = new JustGage({
@@ -162,31 +295,36 @@
             
             function updateScores() {
                 let currentScore = 0;
-                // This calculates the score based on the *semantic relevance* of selected items, not keyword matching.
-                // We'll calculate a theoretical "current score" based on the max score from the job description
-                // and the percentage of coverage from selected items. This is an estimation.
-                
-                const selectedSkills = new Set();
-                 document.querySelectorAll('.suggestion-checkbox:checked').forEach(checkbox => {
+                const selectedCount = document.querySelectorAll('.suggestion-checkbox:checked').length;
+
+                // Calculate total possible score from selected items
+                document.querySelectorAll('.suggestion-checkbox:checked').forEach(checkbox => {
                     const itemID = checkbox.id.replace('suggestion-', '');
                     const item = currentSuggestions.find(s => s.id === itemID);
                     if (item) {
-                        currentScore += item.score; // Summing up semantic scores
-                         if (item.type === 'skill') {
-                            selectedSkills.add(item.text.toLowerCase());
-                        }
+                        currentScore += item.score;
                     }
                 });
 
-                // The score percentage is the sum of semantic scores of selected items, normalized against the total possible score.
-                // This provides a "relevance density" score. We cap it at 100.
-                const scorePercentage = totalJobScore > 0 ? (currentScore / totalJobScore) * 100 : 0;
+                // Calculate max possible score (sum of all available item scores)
+                const maxPossibleScore = currentSuggestions.reduce((sum, item) => sum + item.score, 0);
 
-                currentScoreEl.textContent = currentScore.toFixed(2);
-                maxScoreEl.textContent = totalJobScore.toFixed(2);
-                
-                scoreGauge.refresh(Math.min(scorePercentage, 100).toFixed(2));
+                // Calculate the actual match percentage based on max possible
+                let scorePercentage = 0;
+                if (maxPossibleScore > 0 && selectedCount > 0) {
+                    scorePercentage = Math.min((currentScore / maxPossibleScore) * 100, 100);
+                }
+
+                // Display scores as percentages
+                currentScoreEl.textContent = `${scorePercentage.toFixed(1)}%`;
+                maxScoreEl.textContent = `${(totalJobScore * 100).toFixed(1)}%`;
+
+                // Update the gauge with the actual match percentage
+                scoreGauge.refresh(scorePercentage.toFixed(1));
+
+                console.log(`Selected Score: ${currentScore.toFixed(3)}, Max Possible: ${maxPossibleScore.toFixed(3)}, Current %: ${scorePercentage.toFixed(1)}%, Job Match: ${(totalJobScore * 100).toFixed(1)}%`);
             }
+
 
             function getJobColor(experienceId) {
                 if (!experienceId) return 'transparent';
@@ -277,7 +415,10 @@
                     typeSpan.className = 'bg-gray-200 px-2 py-0.5 rounded-full';
 
                     const scoreSpan = document.createElement('span');
-                    scoreSpan.textContent = `Relevance: ${(item.score * 100).toFixed(0)}%`;
+                    // Calculate this item's contribution to overall match percentage
+                    const maxPossibleScore = currentSuggestions.reduce((sum, i) => sum + i.score, 0);
+                    const itemContribution = maxPossibleScore > 0 ? ((item.score / maxPossibleScore) * (totalJobScore * 100)) : 0;
+                    scoreSpan.textContent = `Relevance: ${itemContribution.toFixed(1)}%`;
                     scoreSpan.className = 'font-semibold';
                     
                     if (item.type === 'accomplishment') {
@@ -376,24 +517,40 @@
             }
             
             function selectAllBest() {
+                const selectedCountBefore = document.querySelectorAll('.suggestion-checkbox:checked').length;
+                console.log(`Before selection: ${selectedCountBefore} items selected`);
+
+                // Sort items by score and select top performing ones
+                const sortedItems = [...currentSuggestions].sort((a, b) => b.score - a.score);
+                const avgScore = currentSuggestions.reduce((sum, item) => sum + item.score, 0) / currentSuggestions.length;
+
                 document.querySelectorAll('.suggestion-checkbox').forEach(checkbox => {
                     const itemID = checkbox.id.replace('suggestion-', '');
                     const item = currentSuggestions.find(s => s.id === itemID);
-                    if (item && item.score > 0.5) { // Auto-select items with high relevance
+                    // Select items that are above average relevance
+                    if (item && item.score >= avgScore && item.score > 0.2) {
                         checkbox.checked = true;
                     }
                 });
-                updateScores();
-                updatePreview();
-            }
+
+    const selectedCountAfter = document.querySelectorAll('.suggestion-checkbox:checked').length;
+    console.log(`After selection: ${selectedCountAfter} items selected`);
+
+    updateScores();
+    updatePreview();
+
+    if (selectedCountBefore === selectedCountAfter) {
+        alert("No additional high-relevance items found to select.");
+    }
+}
 
             function collectFormData() {
                 const selectedSkills = [];
                 const selectedAccomplishments = [];
-                let selectedSummary = '';
+                let selectedSummary = { text: '', score: 0 };
                 const selectedExperience = [];
                 const selectedProjects = [];
-                
+
                 document.querySelectorAll('.suggestion-checkbox:checked').forEach(checkbox => {
                     const itemID = checkbox.id.replace('suggestion-', '');
                     const originalItem = currentSuggestions.find(s => s.id === itemID);
@@ -403,65 +560,38 @@
                     const id = parseInt(checkbox.dataset.id, 10);
 
                     if (type === 'skill') {
-                        selectedSkills.push(originalItem.text);
+                        selectedSkills.push({ text: originalItem.text, score: originalItem.score });
                     } else if (type === 'accomplishment') {
                         const acc = allAccomplishments.find(a => a.id === id);
-                        if (acc) selectedAccomplishments.push(acc);
+                        if (acc) selectedAccomplishments.push({ ...acc, score: originalItem.score });
                     } else if (type === 'summary') {
-                        selectedSummary = originalItem.text;
+                        if (originalItem.score > selectedSummary.score) {
+                            selectedSummary = { text: originalItem.text, score: originalItem.score };
+                        }
                     } else if (type === 'experience') {
                         const exp = allWorkExperience.find(e => e.id === id);
-                        if (exp) selectedExperience.push(exp);
+                        if (exp) selectedExperience.push({ ...exp, score: originalItem.score });
                     } else if (type === 'project') {
                         const proj = allProjects.find(p => p.id === id);
-                        if (proj) selectedProjects.push(proj);
+                        if (proj) selectedProjects.push({ ...proj, score: originalItem.score });
                     }
                 });
 
-                if (selectedSkills.length > 0 && currentSuggestions.length > 0) {
-                    const skillScores = {};
-                    currentSuggestions.forEach(item => {
-                        if (item.type === 'skill') {
-                            skillScores[item.text] = item.score;
-                        }
-                    });
-                    selectedSkills.sort((a, b) => (skillScores[b] || 0) - (skillScores[a] || 0));
-                }
+                // Sort all items by their scores in descending order
+                selectedSkills.sort((a, b) => b.score - a.score);
+                selectedExperience.sort((a, b) => b.score - a.score);
+                selectedAccomplishments.sort((a, b) => b.score - a.score);
+                selectedProjects.sort((a, b) => b.score - a.score);
 
                 return {
-                    summary: selectedSummary,
+                    summary: selectedSummary.text,
                     experience: selectedExperience,
-                    skills: selectedSkills,
+                    skills: selectedSkills.map(skill => skill.text), // Keep just the text for rendering
                     accomplishments: selectedAccomplishments,
                     projects: selectedProjects
                 };
             }
-            
-            async function loadData() {
-                try {
-                    const [resumeRes, expRes, accRes, eduRes, projRes, skillsRes] = await Promise.all([
-                        fetch(API_URL_RESUME),
-                        fetch(`${API_BASE_URL}/work_experience`),
-                        fetch(`${API_BASE_URL}/accomplishments`),
-                        fetch(`${API_BASE_URL}/education`),
-                        fetch(`${API_BASE_URL}/technical_projects`),
-                        fetch(`${API_BASE_URL}/skills`)
-                    ]);
-                    if (resumeRes.ok) {
-                        personalDetails = await resumeRes.json();
-                    }
-                    if (expRes.ok) allWorkExperience = await expRes.json();
-                    if (accRes.ok) allAccomplishments = await accRes.json();
-                    if (eduRes.ok) allEducation = await eduRes.json();
-                    if (projRes.ok) allProjects = await projRes.json();
-                    if (skillsRes.ok) allSkills = await skillsRes.json();
-
-                } catch (error) {
-                    console.error('Error loading data:', error);
-                } finally {
-                    updatePreview();
-                }
-            }
+   
 
             function updatePreview() {
                 const selectedData = collectFormData();
@@ -600,6 +730,7 @@
             analyzeBtn.addEventListener('click', analyzeJobDescription);
             downloadPdfBtn.addEventListener('click', downloadPdf);
             selectBestBtn.addEventListener('click', selectAllBest);
+            improveSelectedBtn.addEventListener('click', improveSelectedAccomplishments);
             
             const mainForm = document.querySelector('.lg\\:grid-cols-2');
             mainForm.addEventListener('input', (event) => {
@@ -619,9 +750,28 @@
                     renderSuggestions(filter);
                 }
             });
+
+            // Handle copy button clicks for AI improvements
+            aiSuggestionsContainer.addEventListener('click', (event) => {
+                if (event.target.classList.contains('copy-btn')) {
+                    const textToCopy = event.target.getAttribute('data-text');
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        const originalText = event.target.textContent;
+                        event.target.textContent = 'Copied!';
+                        event.target.className = 'text-xs text-green-600 underline';
+                        setTimeout(() => {
+                            event.target.textContent = originalText;
+                            event.target.className = 'text-xs text-blue-600 hover:text-blue-800 underline copy-btn';
+                        }, 2000);
+                    }).catch(() => {
+                        alert('Failed to copy to clipboard');
+                    });
+                }
+            });
             // --- Initial Load ---
             initializeGauge();
             loadData();
+            loadAvailableModels();
         });
     </script>
 </body>
