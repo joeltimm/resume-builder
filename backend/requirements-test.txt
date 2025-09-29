@@ -1,0 +1,48 @@
+# Testing dependencies for resume-builder backend
+
+# Core testing framework
+pytest>=7.0.0
+pytest-flask>=1.2.0
+pytest-mock>=3.10.0
+pytest-cov>=4.0.0
+
+# Test utilities
+requests-mock>=1.10.0
+responses>=0.23.0
+freezegun>=1.2.0
+
+# Coverage and reporting
+coverage>=7.0.0
+
+# Additional testing tools
+factory-boy>=3.2.0
+faker>=18.0.0
+
+# Database testing (if needed for integration tests)
+pytest-postgresql>=4.1.0
+
+# For testing async code (if any)
+pytest-asyncio>=0.21.0
+
+# For testing CLI commands
+pytest-click>=1.1.0
+
+# For parameterized testing (already included in pytest but explicit)
+pytest-parametrize-plus>=1.0.0
+
+# For testing environment variables
+pytest-env>=0.8.0
+
+# Development and debugging
+pytest-xdist>=3.0.0  # For parallel test execution
+pytest-html>=3.1.0   # For HTML test reports
+pytest-json-report>=1.5.0  # For JSON test reports
+
+# Linting and code quality (optional for testing)
+flake8>=6.0.0
+black>=23.0.0
+isort>=5.12.0
+
+# Note: Make sure these versions are compatible with your main requirements.txt
+# Run: pip install -r requirements-test.txt
+# To install test dependencies
