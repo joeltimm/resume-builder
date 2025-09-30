@@ -536,7 +536,7 @@ def add_education() -> ResponseValue: # FIXED: Added return type hint
 
     sanitized_degree = bleach.clean(degree)
     sanitized_institution = bleach.clean(institution)
-    text_to_embed = f"{degree} {institution}"
+    text_to_embed = f"{sanitized_degree} {sanitized_institution}" 
     embedding = model.encode(text_to_embed).tolist()
     conn = get_db_connection()
     if not conn:
@@ -809,7 +809,7 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
                 education_entries = cur.fetchall()
 
         # --- Format HTML ---
-        skills_html = ''.join([f'<span style="background-color: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">{skill}</span>' for skill in resume_data.get('skills', [])])
+        skills_html = ''.join([f'<span style="background-color: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">{skill}</span>' for skill in sanitized_resume_data.get('skills', [])])
         experience_html = ''
         for exp in sanitized_resume_data.get('experience', []):
             accomplishments_html = ''.join([
