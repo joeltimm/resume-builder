@@ -6,8 +6,6 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
 # --- Predefined Keyword Lists & Weights ---
-# For a production application, these lists should be expanded and potentially
-# stored in a separate configuration file or database.
 HARD_SKILLS = ['python', 'django', 'react', 'sql', 'agile', 'database management', 'financial modeling']
 TOOLS = ['aws', 'jira', 'git', 'salesforce', 'figma', 'tableau']
 SOFT_SKILLS = ['leadership', 'communication', 'teamwork', 'problem-solving']
@@ -42,16 +40,33 @@ def _calculate_category_score(resume_text, jd_text, keyword_list):
     resume_keywords = _extract_keywords_by_category(resume_text, keyword_list)
     jd_keywords = _extract_keywords_by_category(jd_text, keyword_list)
 
-    if not resume_keywords or not jd_keywords:
+    if not resume_keywords.strip() or not jd_keywords.strip():
         return 0.0
 
     corpus = [resume_keywords, jd_keywords]
     vectorizer = TfidfVectorizer()
+
     try:
         tfidf_matrix = vectorizer.fit_transform(corpus)
-        # The result is [[score]], so we extract the float value
-        return cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-    except ValueError:
+    
+    # Get individual row vectors safely using index 0 and 1
+    # This avoids slicing and is more clearly supported by Pylance
+    
+        doc1_vector = tfidf_matrix[0]  # type:ignore
+        doc2_vector = tfidf_matrix[1]  #type:ignore
+    
+    # Convert to dense arrays if needed for cosine_similarity
+    # But cosine_similarity accepts sparse matrices directly!
+        similarity = cosine_similarity(doc1_vector, doc2_vector)[0][0]
+        return float(similarity)
+    except ValueError as e:
+        if "empty vocabulary" in str(e):
+            return 0.0
+        else:
+            print(f"Unexpected ValueError in TfidfVectorizer: {e}")
+        return 0.0
+    except Exception as e:
+        print(f"Unexpected error in category score calculation: {e}")
         return 0.0
 
 def _calculate_quantifiable_score(resume_text):

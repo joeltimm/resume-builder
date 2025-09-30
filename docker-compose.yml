@@ -13,14 +13,28 @@ services:
     build: ./backend
     restart: always
     # This links the .env file into the container, so the Python app can read it.
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_DEBUG=1
+      - LLM_MODE=${LLM_MODE}
+      - LLM_URL=${LLM_URL}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - GOOGLE_ANALYTICS_ID=${GOOGLE_ANALYTICS_ID}
+      - Anthropic_API_Key=${Anthropic_API_Key}
     env_file:
       - .env
-    # maps port 5031 on
+    # maps port 5001 on
     # the server (the host) to port 5001 inside the container.
     ports:
-      - "5031:5001"
+      - "5001:5001"
     volumes:
       - ./backend:/app
+      - backend_cache:/app/cache
+      - ./backend/llm_integration.py:/app/llm_integration.py
+      - ./backend/scoring_logic.py:/app/scoring_logic.py
+      - ./backend/resume_generator.py:/app/resume_generator.py
       # Mounts the named volume 'model_cache' to the cache directory inside the container
       - sentence_transformer_cache:/root/.cache/torch
     depends_on:
@@ -62,3 +76,4 @@ services:
 volumes:
   postgres_data:
   sentence_transformer_cache:
+  backend_cache:
