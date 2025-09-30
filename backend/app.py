@@ -8,6 +8,8 @@ import requests
 import io
 import click
 import traceback
+import bleach
+from typing import Union
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer
@@ -32,8 +34,7 @@ CORS(app)
 
 # Load the pre-trained Sentence Transformer model.
 model = SentenceTransformer('all-MiniLM-L6-v2')
-
-# FIXED: Create a type alias for Flask's common return patterns to satisfy Pylance.
+# Define a type alias for response values
 ResponseValue = Union[Response, tuple[Response, int]]
 
 
@@ -178,9 +179,17 @@ def handle_resume() -> ResponseValue: # FIXED: Added return type hint
                     resume_data = request.get_json()
                     if not resume_data:
                         return jsonify({"error": "No resume data provided from backend"}), 400
+                                        # Sanitize resume data
+                    sanitized_resume_data = {}
+                    for key, value in resume_data.items():
+                        if isinstance(value, str):
+                            sanitized_resume_data[key] = bleach.clean(value)
+                        else:
+                            sanitized_resume_data[key] = value
+
                     cur.execute(
                         "INSERT INTO resume (id, content) VALUES (1, %s) ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content;",
-                        (json.dumps(resume_data),)
+                        (json.dumps(sanitized_resume_data),)
                     )
                     return jsonify({"message": "Resume saved successfully"}), 201
 
@@ -209,8 +218,9 @@ def add_skill() -> ResponseValue: # FIXED: Added return type hint
     skill_text = data.get('skill_text')
     if not skill_text:
         return jsonify({"error": "Skill text is required"}), 400
-
-    embedding = model.encode(skill_text).tolist()
+    
+    sanitized_skill_text = bleach.clean(skill_text)
+    embedding = model.encode(sanitized_skill_text).tolist()
 
     conn = get_db_connection()
     if not conn:
@@ -221,9 +231,10 @@ def add_skill() -> ResponseValue: # FIXED: Added return type hint
             with conn.cursor() as cur:
                 cur.execute(
                     'INSERT INTO skills (skill_text, embedding) VALUES (%s, %s) RETURNING id;',
-                    (skill_text, json.dumps(embedding))
+                    (sanitized_skill_text, json.dumps(embedding))
                 )
-                # FIXED: Check if fetchone() returns None before subscripting
+
+                # Check if fetchone() returns None before subscripting
                 result = cur.fetchone()
                 if result is None:
                     return jsonify({"error": "Failed to create new skill."}), 500
@@ -254,7 +265,7 @@ def get_skills() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/skills/<int:skill_id>', methods=['DELETE'])
-def delete_skill(skill_id: int) -> ResponseValue: # FIXED: Added return type hint
+def delete_skill(skill_id: int) -> ResponseValue: # Added return type hint
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
@@ -272,7 +283,7 @@ def delete_skill(skill_id: int) -> ResponseValue: # FIXED: Added return type hin
 # --- API for Accomplishments ---
 
 @app.route('/api/accomplishments', methods=['POST'])
-def add_accomplishment() -> ResponseValue: # FIXED: Added return type hint
+def add_accomplishment() -> ResponseValue: # Added return type hint
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid request: No JSON body provided."}), 400
@@ -283,7 +294,8 @@ def add_accomplishment() -> ResponseValue: # FIXED: Added return type hint
     if not accomplishment_text:
         return jsonify({"error": "Accomplishment text is required"}), 400
 
-    embedding = model.encode(accomplishment_text).tolist()
+    sanitized_accomplishment_text = bleach.clean(accomplishment_text)
+    embedding = model.encode(sanitized_accomplishment_text).tolist()
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
@@ -293,9 +305,9 @@ def add_accomplishment() -> ResponseValue: # FIXED: Added return type hint
             with conn.cursor() as cur:
                 cur.execute(
                     'INSERT INTO accomplishments (accomplishment_text, embedding, work_experience_id) VALUES (%s, %s, %s) RETURNING id;',
-                    (accomplishment_text, json.dumps(embedding), work_experience_id)
+                    (sanitized_accomplishment_text, json.dumps(embedding), work_experience_id)
                 )
-                # FIXED: Check if fetchone() returns None before subscripting
+                # Check if fetchone() returns None before subscripting
                 result = cur.fetchone()
                 if result is None:
                     return jsonify({"error": "Failed to create new accomplishment."}), 500
@@ -356,7 +368,8 @@ def add_professional_summary() -> ResponseValue: # FIXED: Added return type hint
     if not summary_text:
         return jsonify({"error": "Summary text is required"}), 400
 
-    embedding = model.encode(summary_text).tolist()
+    sanitized_summary_text = bleach.clean(summary_text)
+    embedding = model.encode(sanitized_summary_text).tolist()
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
@@ -366,9 +379,9 @@ def add_professional_summary() -> ResponseValue: # FIXED: Added return type hint
             with conn.cursor() as cur:
                 cur.execute(
                     'INSERT INTO professional_summaries (summary_text, embedding) VALUES (%s, %s) RETURNING id;',
-                    (summary_text, json.dumps(embedding))
+                    (sanitized_summary_text, json.dumps(embedding))
                 )
-                # FIXED: Check if fetchone() returns None before subscripting
+                # Check if fetchone() returns None before subscripting
                 result = cur.fetchone()
                 if result is None:
                     return jsonify({"error": "Failed to create new summary."}), 500
@@ -425,11 +438,19 @@ def add_work_experience() -> ResponseValue: # FIXED: Added return type hint
     job_title = data.get('job_title')
     company = data.get('company')
     description = data.get('description', '')
+    location = data.get('location')
+    dates = data.get('dates')
 
     if not job_title or not company:
         return jsonify({"error": "Job title and company are required"}), 400
 
-    text_to_embed = f"{job_title} {description}"
+    sanitized_job_title = bleach.clean(job_title)
+    sanitized_company = bleach.clean(company)
+    sanitized_description = bleach.clean(description)
+    sanitized_location = bleach.clean(location) if location else None
+    sanitized_dates = bleach.clean(dates) if dates else None
+    
+    text_to_embed = f"{sanitized_job_title} {sanitized_description}"
     embedding = model.encode(text_to_embed).tolist()
     conn = get_db_connection()
     if not conn:
@@ -440,9 +461,9 @@ def add_work_experience() -> ResponseValue: # FIXED: Added return type hint
             with conn.cursor() as cur:
                 cur.execute(
                     'INSERT INTO work_experience (job_title, company, location, dates, description, embedding) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id;',
-                    (job_title, company, data.get('location'), data.get('dates'), description, json.dumps(embedding))
+                    (sanitized_job_title, sanitized_company, sanitized_location, sanitized_dates, sanitized_description, json.dumps(embedding))
                 )
-                # FIXED: Check if fetchone() returns None before subscripting
+                # Check if fetchone() returns None before subscripting
                 result = cur.fetchone()
                 if result is None:
                     return jsonify({"error": "Failed to create new work experience."}), 500
@@ -513,6 +534,8 @@ def add_education() -> ResponseValue: # FIXED: Added return type hint
     if not degree or not institution:
         return jsonify({"error": "Degree and institution are required"}), 400
 
+    sanitized_degree = bleach.clean(degree)
+    sanitized_institution = bleach.clean(institution)
     text_to_embed = f"{degree} {institution}"
     embedding = model.encode(text_to_embed).tolist()
     conn = get_db_connection()
@@ -524,7 +547,7 @@ def add_education() -> ResponseValue: # FIXED: Added return type hint
             with conn.cursor() as cur:
                 cur.execute(
                     'INSERT INTO education (degree, institution, embedding) VALUES (%s, %s, %s) RETURNING id;',
-                    (degree, institution, json.dumps(embedding))
+                    (sanitized_degree, sanitized_institution, json.dumps(embedding))
                 )
                 # FIXED: Check if fetchone() returns None before subscripting
                 result = cur.fetchone()
@@ -586,8 +609,11 @@ def add_technical_project() -> ResponseValue: # FIXED: Added return type hint
 
     if not project_name:
         return jsonify({"error": "Project name is required"}), 400
+    sanitized_project_name = bleach.clean(project_name)
+    sanitized_description = bleach.clean(description)
+    sanitized_tools = bleach.clean(tools)
 
-    text_to_embed = f"{project_name} {description} {tools}"
+    text_to_embed = f"{sanitized_project_name} {sanitized_description} {sanitized_tools}"
     embedding = model.encode(text_to_embed).tolist()
     conn = get_db_connection()
     if not conn:
@@ -598,9 +624,9 @@ def add_technical_project() -> ResponseValue: # FIXED: Added return type hint
             with conn.cursor() as cur:
                 cur.execute(
                     'INSERT INTO technical_projects (project_name, description, tools, embedding) VALUES (%s, %s, %s, %s) RETURNING id;',
-                    (project_name, description, tools, json.dumps(embedding))
+                    (sanitized_project_name, sanitized_description, sanitized_tools, json.dumps(embedding))
                 )
-                # FIXED: Check if fetchone() returns None before subscripting
+                # Check if fetchone() returns None before subscripting
                 result = cur.fetchone()
                 if result is None:
                     return jsonify({"error": "Failed to create new technical project."}), 500
@@ -657,7 +683,7 @@ def delete_technical_project(project_id: int) -> ResponseValue: # FIXED: Added r
 # --- MODIFIED: API for AI Matching ---
 
 @app.route('/api/match', methods=['POST'])
-def match_skills() -> ResponseValue: # FIXED: Added return type hint
+def match_skills() -> ResponseValue: # Added return type hint
     try:
         data = request.get_json()
         if not data:
@@ -668,26 +694,30 @@ def match_skills() -> ResponseValue: # FIXED: Added return type hint
 
         if not job_description:
             return jsonify({"error": "Job description is required"}), 400
-
+        sanitized_job_description = bleach.clean(job_description)
+        if not model_name:
+            return jsonify({"error": "Model name is required"}), 400
+        
         conn = get_db_connection()
         if not conn:
             return jsonify({"error": "Database connection failed"}), 500
 
         with conn:
             with conn.cursor() as cur:
-                # âœ… MODIFIED: Fetch IDs along with text
+                # MODIFIED: Fetch IDs along with text
                 cur.execute('SELECT id, skill_text FROM skills;')
                 skills = [{"id": row[0], "text": row[1]} for row in cur.fetchall()]
                 cur.execute('SELECT id, accomplishment_text FROM accomplishments;')
                 accomplishments = [{"id": row[0], "text": row[1]} for row in cur.fetchall()]
 
         user_data = {
-            # âœ… MODIFIED: Pass only the text to the LLM
+            # MODIFIED: Pass only the text to the LLM
             "skills": [s['text'] for s in skills],
             "accomplishments": [a['text'] for a in accomplishments]
         }
 
-        analysis_result = analyze_job_description_with_llm(job_description, user_data, model_name)
+        analysis_result = analyze_job_description_with_llm(sanitized_job_description, user_data, model_name)
+
 
         if "error" in analysis_result:
             return jsonify(analysis_result), 500
@@ -732,8 +762,11 @@ def get_score() -> ResponseValue: # FIXED: Added return type hint
 
     if not resume_text or not jd_text:
         return jsonify({"error": "Missing resume or job description text"}), 400
-
-    score_data_json = calculate_weighted_match_score(resume_text, jd_text)
+    
+    sanitized_resume_text = bleach.clean(resume_text)
+    sanitized_jd_text = bleach.clean(jd_text)
+    
+    score_data_json = calculate_weighted_match_score(sanitized_resume_text, sanitized_jd_text)
     return jsonify(json.loads(score_data_json))
 
 
@@ -743,6 +776,28 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
     if not resume_data:
         return jsonify({"error": "Invalid request: No JSON body provided."}), 400
 
+    sanitized_resume_data = {}
+    for key, value in resume_data.items():
+        if isinstance(value, str):
+            sanitized_resume_data[key] = bleach.clean(value)
+        elif isinstance(value, list):
+            sanitized_list = []
+            for item in value:
+                if isinstance(item, str):
+                    sanitized_list.append(bleach.clean(item))
+                elif isinstance(item, dict):
+                    sanitized_dict = {}
+                    for k, v in item.items():
+                        if isinstance(v, str):
+                            sanitized_dict[k] = bleach.clean(v)
+                        else:
+                            sanitized_dict[k] = v
+                    sanitized_list.append(sanitized_dict)
+                else:
+                    sanitized_list.append(item)
+            sanitized_resume_data[key] = sanitized_list
+        else:
+            sanitized_resume_data[key] = value
     conn = get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
@@ -753,13 +808,13 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
                 cur.execute('SELECT degree, institution FROM education ORDER BY id;')
                 education_entries = cur.fetchall()
 
-        # --- Format HTML (omitted for brevity, no changes needed here) ---
+        # --- Format HTML ---
         skills_html = ''.join([f'<span style="background-color: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">{skill}</span>' for skill in resume_data.get('skills', [])])
         experience_html = ''
-        for exp in resume_data.get('experience', []):
+        for exp in sanitized_resume_data.get('experience', []):
             accomplishments_html = ''.join([
                 f'<li style="margin-bottom: 5px;">{acc["accomplishment_text"]}</li>'
-                for acc in resume_data.get('accomplishments', [])
+                for acc in sanitized_resume_data.get('accomplishments', [])
                 if acc.get("work_experience_id") == exp.get("id")
             ])
             description_html = ''
@@ -782,7 +837,7 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
             """
         education_html = ''.join([f"<p>{degree} - {institution}</p>" for degree, institution in education_entries])
         projects_html = ''
-        for proj in resume_data.get('projects', []):
+        for proj in sanitized_resume_data.get('projects', []):
             project_desc = proj.get('description', '').replace('\n', '<br>')
             projects_html += f"""
             <div style="margin-bottom: 15px;">
@@ -794,8 +849,8 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
         html_content = f"""
         <html><head><style>body {{ font-family: sans-serif; font-size: 11pt; }} h1, h2, h3, h4, p {{ margin: 0; padding: 0; }} hr {{ border: none; border-top: 1px solid #ccc; margin: 15px 0; }}</style></head>
         <body>
-            <div style="text-align: center;"><h1 style="font-size: 2.5em;">{resume_data.get('name', 'Your Name')}</h1><p>{resume_data.get('email', '')} | {resume_data.get('phone', '')} | {resume_data.get('linkedin', '')} | {resume_data.get('github', '')} | {resume_data.get('location', '')} | {resume_data.get('portfolio', '')}</p></div><hr>
-            <div><h3>Summary</h3><p>{resume_data.get('summary', '')}</p></div><hr>
+            <div style="text-align: center;"><h1 style="font-size: 2.5em;">{sanitized_resume_data.get('name', 'Your Name')}</h1><p>{sanitized_resume_data.get('email', '')} | {sanitized_resume_data.get('phone', '')} | {sanitized_resume_data.get('linkedin', '')} | {sanitized_resume_data.get('github', '')} | {sanitized_resume_data.get('location', '')} | {sanitized_resume_data.get('portfolio', '')}</p></div><hr>
+            <div><h3>Summary</h3><p>{sanitized_resume_data.get('summary', '')}</p></div><hr>
             <div><h3>Skills</h3><p>{skills_html}</p></div><hr>
             <div><h3>Work Experience</h3>{experience_html}</div><hr>
             <div><h3>Technical Projects</h3>{projects_html}</div><hr>
@@ -863,7 +918,13 @@ def get_improved_bullet() -> ResponseValue: # FIXED: Added return type hint
     if not all([bullet, job_title, industry, job_description]):
         return jsonify({"error": "Missing required fields"}), 400
 
-    improved_bullet = improve_resume_bullet(bullet, job_title, industry, job_description, model_name)
+
+    sanitized_bullet = bleach.clean(bullet)
+    sanitized_job_title = bleach.clean(job_title)
+    sanitized_industry = bleach.clean(industry)
+    sanitized_job_description = bleach.clean(job_description)
+
+    improved_bullet = improve_resume_bullet(sanitized_bullet, sanitized_job_title, sanitized_industry, sanitized_job_description, model_name)
 
     return jsonify({
         "improved_bullet": improved_bullet,
@@ -882,7 +943,9 @@ def check_for_duplicates() -> ResponseValue: # FIXED: Added return type hint
     if not isinstance(bullet_points, list):
         return jsonify({"error": "Expected a list of bullet points"}), 400
 
-    duplicate_data = find_duplicate_entries(bullet_points)
+    sanitized_bullet_points = [bleach.clean(bullet) for bullet in bullet_points]
+
+    duplicate_data = find_duplicate_entries(sanitized_bullet_points)
     return jsonify({"duplicates": duplicate_data})
 
 
@@ -892,7 +955,30 @@ def create_ats_resume() -> ResponseValue: # FIXED: Added return type hint
     if not resume_data:
         return jsonify({"error": "No resume data provided"}), 400
 
-    ats_text = generate_ats_resume_text(resume_data)
+    sanitized_resume_data = {}
+    for key, value in resume_data.items():
+        if isinstance(value, str):
+            sanitized_resume_data[key] = bleach.clean(value)
+        elif isinstance(value, list):
+            sanitized_list = []
+            for item in value:
+                if isinstance(item, str):
+                    sanitized_list.append(bleach.clean(item))
+                elif isinstance(item, dict):
+                    sanitized_dict = {}
+                    for k, v in item.items():
+                        if isinstance(v, str):
+                            sanitized_dict[k] = bleach.clean(v)
+                        else:
+                            sanitized_dict[k] = v
+                    sanitized_list.append(sanitized_dict)
+                else:
+                    sanitized_list.append(item)
+            sanitized_resume_data[key] = sanitized_list
+        else:
+            sanitized_resume_data[key] = value
+
+    ats_text = generate_ats_resume_text(sanitized_resume_data)
     return Response(
         ats_text,
         mimetype="text/plain",

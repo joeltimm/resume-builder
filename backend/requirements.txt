@@ -12,3 +12,7 @@ numpy
 anthropic
 rapidfuzz
 click
+Flask-Cors
+bleach
+gunicorn
+typing
