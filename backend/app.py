@@ -11,7 +11,12 @@ import traceback
 import bleach
 from typing import Union
 from flask import Flask, request, jsonify, send_file, Response
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+#from flask_wtf.csrf import CSRFProtect
+from werkzeug.security import generate_password_hash, check_password_hash
 from sentence_transformers import SentenceTransformer
 import nltk
 # FIXED: Added Union for type hinting
@@ -30,7 +35,40 @@ except Exception as e:
 
 # --- Initialization ---
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 CORS(app)
+#CSRFProtect(app)
+# Rate Limiting Setup
+limiter = Limiter(  
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
+# --- Login Manager Setup ---
+#login_manager = LoginManager()
+#login_manager.init_app(app)
+
+# --- User Model ---
+#class User(UserMixin):
+#    def __init__(self, user_id, username):
+#        self.id = user_id
+#        self.username = username
+
+#    @staticmethod
+#    def get(user_id):
+#        conn = get_db_connection()
+ #       with conn:
+  #          with conn.cursor() as cur:
+   #             cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+    #            user_data = cur.fetchone()
+     #           if not user_data:
+      #              return None
+       #         return User(user_id=user_data[0], username=user_data[1])
+
+#@login_manager.user_loader
+#def load_user(user_id):
+#    return User.get(user_id)
 
 # Load the pre-trained Sentence Transformer model.
 model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -138,6 +176,16 @@ def setup_database():
                     );
                 ''')
 
+                # --- Certificate Table ---
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS cert (
+                        id SERIAL PRIMARY KEY,
+                        degree TEXT NOT NULL,
+                        institution TEXT NOT NULL,
+                        embedding TEXT
+                    );
+                ''')
+
                 # --- Technical Projects Table ---
                 cur.execute('''
                     CREATE TABLE IF NOT EXISTS technical_projects (
@@ -146,6 +194,15 @@ def setup_database():
                         description TEXT,
                         tools TEXT,
                         embedding TEXT
+                    );
+                ''')
+
+                # --- Users Table ---
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        username TEXT NOT NULL UNIQUE,
+                        password_hash TEXT NOT NULL
                     );
                 ''')
 
@@ -163,10 +220,68 @@ def init_db_command():
 
 app.cli.add_command(init_db_command)
 
+#@app.route('/api/register', methods=['POST'])
+#def register():
+ #   data = request.get_json()
+  #  username = bleach.clean(data.get('username'))
+   # password = data.get('password')
 
+    #if not username or not password:
+     #   return jsonify({"error": "Username and password are required"}), 400
+
+    #hashed_password = generate_password_hash(password)
+
+#    conn = get_db_connection()
+ #   try:
+  #      with conn:
+   #         with conn.cursor() as cur:
+    #            cur.execute(
+     #               "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+      #              (username, hashed_password)
+       #         )
+#        return jsonify({"message": "User registered successfully"}), 201
+ #   except psycopg2.IntegrityError:
+  #      return jsonify({"error": "Username already exists"}), 409
+   # except Exception as e:
+    #    print(f"Error during registration: {e}")
+     #   return jsonify({"error": "Internal server error"}), 500
+
+#@app.route('/api/login', methods=['POST'])
+#def login():
+#    data = request.get_json()
+ #   username = bleach.clean(data.get('username'))
+  #  password = data.get('password')
+
+#    conn = get_db_connection()
+ #   with conn:
+  #      with conn.cursor() as cur:
+   #         cur.execute("SELECT id, password_hash FROM users WHERE username = %s", (username,))
+    #        user_data = cur.fetchone()
+
+  #  if user_data and check_password_hash(user_data[1], password):
+   #     user = User(user_id=user_data[0], username=username)
+    #    login_user(user)
+     #   return jsonify({"message": "Logged in successfully"}), 200
+
+    #return jsonify({"error": "Invalid username or password"}), 401
+
+#@app.route('/api/logout', methods=['POST'])
+#@login_required
+#def logout():
+#    logout_user()
+#    return jsonify({"message": "Logged out successfully"}), 200
+
+#@app.route('/api/status', methods=['GET'])
+#def status():
+#    if current_user.is_authenticated:
+#        return jsonify({"logged_in": True, "user": {"id": current_user.id, "username": current_user.username}})
+#    else:
+#        return jsonify({"logged_in": False})
+    
 # --- API Routes ---
 
 @app.route('/resume', methods=['GET', 'POST'])
+##@login_required
 def handle_resume() -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -210,6 +325,7 @@ def handle_resume() -> ResponseValue: # FIXED: Added return type hint
 # --- API for Skills ---
 
 @app.route('/api/skills', methods=['POST'])
+#@login_required
 def add_skill() -> ResponseValue: # FIXED: Added return type hint
     data = request.get_json()
     if not data:
@@ -248,6 +364,7 @@ def add_skill() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/skills', methods=['GET'])
+#@login_required
 def get_skills() -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -265,6 +382,7 @@ def get_skills() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/skills/<int:skill_id>', methods=['DELETE'])
+#@login_required
 def delete_skill(skill_id: int) -> ResponseValue: # Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -283,6 +401,7 @@ def delete_skill(skill_id: int) -> ResponseValue: # Added return type hint
 # --- API for Accomplishments ---
 
 @app.route('/api/accomplishments', methods=['POST'])
+#@login_required
 def add_accomplishment() -> ResponseValue: # Added return type hint
     data = request.get_json()
     if not data:
@@ -321,6 +440,7 @@ def add_accomplishment() -> ResponseValue: # Added return type hint
 
 
 @app.route('/api/accomplishments', methods=['GET'])
+#@login_required
 def get_accomplishments() -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -341,6 +461,7 @@ def get_accomplishments() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/accomplishments/<int:accomplishment_id>', methods=['DELETE'])
+#@login_required
 def delete_accomplishment(accomplishment_id: int) -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -359,6 +480,7 @@ def delete_accomplishment(accomplishment_id: int) -> ResponseValue: # FIXED: Add
 # --- API for Professional Summaries ---
 
 @app.route('/api/professional_summaries', methods=['POST'])
+#@login_required
 def add_professional_summary() -> ResponseValue: # FIXED: Added return type hint
     data = request.get_json()
     if not data:
@@ -395,6 +517,7 @@ def add_professional_summary() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/professional_summaries', methods=['GET'])
+#@login_required
 def get_professional_summaries() -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -412,6 +535,7 @@ def get_professional_summaries() -> ResponseValue: # FIXED: Added return type hi
 
 
 @app.route('/api/professional_summaries/<int:summary_id>', methods=['DELETE'])
+#@login_required
 def delete_professional_summary(summary_id: int) -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -430,6 +554,7 @@ def delete_professional_summary(summary_id: int) -> ResponseValue: # FIXED: Adde
 # --- API for Work Experience ---
 
 @app.route('/api/work_experience', methods=['POST'])
+#@login_required
 def add_work_experience() -> ResponseValue: # FIXED: Added return type hint
     data = request.get_json()
     if not data:
@@ -477,6 +602,7 @@ def add_work_experience() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/work_experience', methods=['GET'])
+#@login_required
 def get_work_experience() -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -504,6 +630,7 @@ def get_work_experience() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/work_experience/<int:experience_id>', methods=['DELETE'])
+#@login_required
 def delete_work_experience(experience_id: int) -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -523,6 +650,7 @@ def delete_work_experience(experience_id: int) -> ResponseValue: # FIXED: Added 
 # --- API for Education ---
 
 @app.route('/api/education', methods=['POST'])
+#@login_required
 def add_education() -> ResponseValue: # FIXED: Added return type hint
     data = request.get_json()
     if not data:
@@ -561,8 +689,50 @@ def add_education() -> ResponseValue: # FIXED: Added return type hint
         print(f"Error inserting education: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+# --- API for Certificates ---
+
+@app.route('/api/cert', methods=['POST'])
+#@login_required
+def add_cert() -> ResponseValue: # FIXED: Added return type hint
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid request: No JSON body provided."}), 400
+
+    cert = data.get('cert/')
+    institution = data.get('institution')
+
+    if not cert or not institution:
+        return jsonify({"error": "Certificate"}), 400
+
+    sanitized_cert = bleach.clean(cert)
+    text_to_embed = f"{sanitized_cert} {sanitized_cert}" 
+    embedding = model.encode(text_to_embed).tolist()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    'INSERT INTO cert (cert, embedding) VALUES (%s, %s, %s) RETURNING id;',
+                    (sanitized_cert, json.dumps(embedding))
+                )
+                # FIXED: Check if fetchone() returns None before subscripting
+                result = cur.fetchone()
+                if result is None:
+                    return jsonify({"error": "Failed to create new cert entry."}), 500
+                new_id = result[0]
+        return jsonify({"message": "Cert added successfully", "id": new_id}), 201
+    except psycopg2.IntegrityError:
+        return jsonify({"error": "This cert entry already exists"}), 409
+    except Exception as e:
+        print(f"Error inserting cert: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
 
 @app.route('/api/education', methods=['GET'])
+#@login_required
 def get_education() -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -578,8 +748,25 @@ def get_education() -> ResponseValue: # FIXED: Added return type hint
         print(f"Error fetching education: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+@app.route('/api/cert', methods=['GET'])
+#@login_required
+def get_cert() -> ResponseValue: # FIXED: Added return type hint
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT id, degree, institution FROM cert ORDER BY id;')
+                cert = [{"id": row[0], "degree": row[1], "institution": row[2]} for row in cur.fetchall()]
+        return jsonify(cert)
+    except Exception as e:
+        print(f"Error fetching cert: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/education/<int:education_id>', methods=['DELETE'])
+#@login_required
 def delete_education(education_id: int) -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -594,10 +781,26 @@ def delete_education(education_id: int) -> ResponseValue: # FIXED: Added return 
         print(f"Error deleting education: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+@app.route('/api/cert/<int:cert_id>', methods=['DELETE'])
+#@login_required
+def delete_cert(cert_id: int) -> ResponseValue: # FIXED: Added return type hint
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute('DELETE FROM cert WHERE id = %s;', (cert_id,))
+        return jsonify({"message": "Certifacte deleted successfully"})
+    except Exception as e:
+        print(f"Error deleting cert: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 # --- API for Technical Projects ---
 
 @app.route('/api/technical_projects', methods=['POST'])
+#@login_required
 def add_technical_project() -> ResponseValue: # FIXED: Added return type hint
     data = request.get_json()
     if not data:
@@ -640,6 +843,7 @@ def add_technical_project() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/technical_projects', methods=['GET'])
+#@login_required
 def get_technical_projects() -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -665,6 +869,7 @@ def get_technical_projects() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/technical_projects/<int:project_id>', methods=['DELETE'])
+#@login_required
 def delete_technical_project(project_id: int) -> ResponseValue: # FIXED: Added return type hint
     conn = get_db_connection()
     if not conn:
@@ -683,6 +888,7 @@ def delete_technical_project(project_id: int) -> ResponseValue: # FIXED: Added r
 # --- MODIFIED: API for AI Matching ---
 
 @app.route('/api/match', methods=['POST'])
+##@login_required
 def match_skills() -> ResponseValue: # Added return type hint
     try:
         data = request.get_json()
@@ -752,6 +958,7 @@ def match_skills() -> ResponseValue: # Added return type hint
 
 
 @app.route('/calculate-score', methods=['POST'])
+#@login_required
 def get_score() -> ResponseValue: # FIXED: Added return type hint
     data = request.get_json()
     if not data:
@@ -771,6 +978,7 @@ def get_score() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/export-pdf', methods=['POST'])
+#@login_required
 def export_pdf() -> ResponseValue: # FIXED: Added return type hint
     resume_data = request.get_json()
     if not resume_data:
@@ -807,6 +1015,8 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
             with conn.cursor() as cur:
                 cur.execute('SELECT degree, institution FROM education ORDER BY id;')
                 education_entries = cur.fetchall()
+                cur.execute('SELECT cert FROM cert ORDER BY id;')
+                cert_entries = cur.fetchall()           
 
         # --- Format HTML ---
         skills_html = ''.join([f'<span style="background-color: #eee; padding: 2px 6px; border-radius: 4px; margin-right: 5px;">{skill}</span>' for skill in sanitized_resume_data.get('skills', [])])
@@ -836,6 +1046,9 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
             </div>
             """
         education_html = ''.join([f"<p>{degree} - {institution}</p>" for degree, institution in education_entries])
+        
+        cert_html = ''.join([f"<p>{cert}</p>" for cert in cert_entries])
+        
         projects_html = ''
         for proj in sanitized_resume_data.get('projects', []):
             project_desc = proj.get('description', '').replace('\n', '<br>')
@@ -855,6 +1068,7 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
             <div><h3>Work Experience</h3>{experience_html}</div><hr>
             <div><h3>Technical Projects</h3>{projects_html}</div><hr>
             <div><h3>Education</h3>{education_html}</div>
+            <div><h3>Cert</h3>{cert_html}</div>
         </body></html>
         """
 
@@ -880,6 +1094,7 @@ def export_pdf() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/api/models', methods=['GET'])
+#@login_required
 def get_llm_models() -> ResponseValue: # FIXED: Added return type hint
     llm_mode = os.environ.get("LLM_MODE", "local").lower()
 
@@ -904,7 +1119,9 @@ def get_llm_models() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/improve-bullet', methods=['POST'])
-def get_improved_bullet() -> ResponseValue: # FIXED: Added return type hint
+#@login_required
+@limiter.limit("20 per minute")
+def get_improved_bullet() -> ResponseValue: # Added return type hint
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid request: No JSON body provided."}), 400
@@ -934,6 +1151,7 @@ def get_improved_bullet() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/check-duplicates', methods=['POST'])
+#@login_required
 def check_for_duplicates() -> ResponseValue: # FIXED: Added return type hint
     data = request.get_json()
     if not data:
@@ -950,6 +1168,7 @@ def check_for_duplicates() -> ResponseValue: # FIXED: Added return type hint
 
 
 @app.route('/generate-ats-resume', methods=['POST'])
+#@login_required
 def create_ats_resume() -> ResponseValue: # FIXED: Added return type hint
     resume_data = request.get_json()
     if not resume_data:
@@ -982,5 +1201,5 @@ def create_ats_resume() -> ResponseValue: # FIXED: Added return type hint
     return Response(
         ats_text,
         mimetype="text/plain",
-        headers={"Content-disposition": "attachment; filename=ats_resume.txt"}
+        headers={"Content-disposition": "attachment; filename=resume.txt"}
     )

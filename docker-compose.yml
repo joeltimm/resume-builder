@@ -23,6 +23,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - GOOGLE_ANALYTICS_ID=${GOOGLE_ANALYTICS_ID}
       - Anthropic_API_Key=${Anthropic_API_Key}
+      - SECRET_KEY=${SECRET_KEY}
     env_file:
       - .env
     # maps port 5001 on

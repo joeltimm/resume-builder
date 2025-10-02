@@ -30,7 +30,13 @@
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
-    
+    <header class="bg-white shadow-md">
+    <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
+        <a class="text-xl font-bold text-gray-800" href="/index.html">AI Resume Builder</a>
+        <div id="auth-container" class="flex items-center">
+            </div>
+    </nav>
+        </header>
     <div class="container mx-auto p-4 lg:p-8">
         <header class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-900">AI Resume Builder</h1>
@@ -138,7 +144,8 @@
             let currentSuggestions = [];
             let allWorkExperience = [];
             let allAccomplishments = [];
-            let allEducation = []; 
+            let allEducation = [];
+            let allCert = [];  
             let allProjects = [];
             let allSkills = [];
             let scoreGauge = null;
@@ -148,7 +155,12 @@
             let jobColorMap = {};
             let colorIndex = 0;
 
-            // --- Core Functions ---
+            // // --- Core Functions ---
+            // function getCsrfToken() {
+            //    const csrfCookie = document.cookie.match(/csrftoken=([^;]+)/);
+            //    return csrfCookie ? csrfCookie[1] : '';
+            //         }
+
             async function loadData() {
                 try {
                     const endpoints = {
@@ -157,6 +169,7 @@
                         accomplishments: `${API_BASE_URL}/accomplishments`,
                         experience: `${API_BASE_URL}/work_experience`,
                         education: `${API_BASE_URL}/education`,
+                        cert: `${API_BASE_URL}/cert`,
                         projects: `${API_BASE_URL}/technical_projects`
                     };
 
@@ -169,13 +182,14 @@
                         }
                     }
 
-                    const [personalRes, skillsRes, accomplishmentsRes, experienceRes, educationRes, projectsRes] = responses;
+                    const [personalRes, skillsRes, accomplishmentsRes, experienceRes, educationRes, certRes, projectsRes] = responses;
 
                     personalDetails = await personalRes.json();
                     allSkills = await skillsRes.json();
                     allAccomplishments = await accomplishmentsRes.json();
                     allWorkExperience = await experienceRes.json();
                     allEducation = await educationRes.json();
+                    allCert = await certRes.json();
                     allProjects = await projectsRes.json();
 
                     updatePreview(); // Initial render of the resume preview
@@ -186,56 +200,59 @@
             }
 
             async function improveSelectedAccomplishments() {
-            const selectedCheckboxes = document.querySelectorAll('.suggestion-checkbox:checked');
-            const jobDescription = jobDescriptionInput.value.trim();
-            const selectedModel = null;
+                const selectedCheckboxes = document.querySelectorAll('.suggestion-checkbox:checked');
+                const jobDescription = jobDescriptionInput.value.trim();
+                const selectedModel = null;
 
-            if (selectedCheckboxes.length === 0) {
-                alert('Please select at least one accomplishment to improve.');
-                return;
-            }
+                if (selectedCheckboxes.length === 0) {
+                    alert('Please select at least one accomplishment to improve.');
+                    return;
+                }
 
-            if (!jobDescription) {
-                alert('Please analyze a job description first.');
-                return;
-            }
+                if (!jobDescription) {
+                    alert('Please analyze a job description first.');
+                    return;
+                }
 
-            improveSelectedBtn.disabled = true;
-            improveSelectedBtn.textContent = 'Improving...';
+                improveSelectedBtn.disabled = true;
+                improveSelectedBtn.textContent = 'Improving...';
 
-            const existingSuggestions = aiSuggestionsContainer.querySelectorAll('.ai-improvement');
-            existingSuggestions.forEach(el => el.remove());
+                const existingSuggestions = aiSuggestionsContainer.querySelectorAll('.ai-improvement');
+                existingSuggestions.forEach(el => el.remove());
 
-            for (const checkbox of selectedCheckboxes) {
-                const itemID = checkbox.id.replace('suggestion-', '');
-                const item = currentSuggestions.find(s => s.id === itemID);
+                for (const checkbox of selectedCheckboxes) {
+                    const itemID = checkbox.id.replace('suggestion-', '');
+                    const item = currentSuggestions.find(s => s.id === itemID);
 
-                if (item) {
-                    try {
-                        const response = await fetch(`${API_BASE_URL.replace('/api', '')}/improve-bullet`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                bulletPoint: item.text,
-                                jobTitle: 'Software Engineer', // This could be extracted from the JD
-                                industry: 'Technology', // This could also be context from the JD
-                                jobDescription: jobDescription, // Pass the job description
-                                modelName: selectedModel
-                            })
-                        });
+                    if (item) {
+                        try {
+                            const response = await fetch(`${API_BASE_URL.replace('/api', '')}/improve-bullet`, {
+                                method: 'POST',
+                                headers: { 
+                                            'Content-Type': 'application/json' ,
+                                            //'X-CSRFToken': getCsrfToken()
+                                        },
+                                body: JSON.stringify({
+                                    bulletPoint: item.text,
+                                    jobTitle: 'Software Engineer', // This could be extracted from the JD
+                                    industry: 'Technology', // This could also be context from the JD
+                                    jobDescription: jobDescription, // Pass the job description
+                                    modelName: selectedModel
+                                })
+                            });
 
-                        const result = await response.json();
-                        displayImprovement(item.text, result.improved_bullet, result.model_used);
-                    } catch (error) {
-                        console.error('Error improving bullet:', error);
-                        displayImprovement(item.text, `Error: ${error.message}`, 'error');
+                            const result = await response.json();
+                            displayImprovement(item.text, result.improved_bullet, result.model_used);
+                        } catch (error) {
+                            console.error('Error improving bullet:', error);
+                            displayImprovement(item.text, `Error: ${error.message}`, 'error');
+                        }
                     }
                 }
-            }
 
-            improveSelectedBtn.disabled = false;
-            improveSelectedBtn.textContent = 'Improve Selected with AI';
-        }
+                improveSelectedBtn.disabled = false;
+                improveSelectedBtn.textContent = 'Improve Selected with AI';
+            }
 
         function displayImprovement(originalText, improvedText, modelUsed) {
             const improvementDiv = document.createElement('div');
@@ -270,7 +287,10 @@
             try {
                 const response = await fetch(`${API_BASE_URL}/accomplishments`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                                'Content-Type': 'application/json' ,
+                                //'X-CSRFToken': getCsrfToken()
+                                    },
                     body: JSON.stringify({ accomplishment_text: text })
                 });
                 if (!response.ok) {
@@ -497,7 +517,10 @@
                 const selectedModel = null;
                 const response = await fetch(`${API_BASE_URL}/match` , {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                                'Content-Type': 'application/json' ,
+                                //'X-CSRFToken': getCsrfToken()
+                                    },
                     body: JSON.stringify({
                         job_description: jobDescription,
                         model_name: selectedModel
@@ -522,7 +545,7 @@
                 }
 
                 renderMissingKeywords(missingKeywords);
-                
+
                 statusText.textContent = 'Analysis complete!';
                 setTimeout(() => {
                     statusDiv.classList.add('hidden');
@@ -682,6 +705,16 @@
                     });
                 }
 
+                let certHTML = '';
+                if (allCert && allCert.length > 0) {
+                    allCert.forEach(cert => {
+                        certHTML += `
+                            <div class="mt-3">
+                                <h4 class="text-md font-bold">${s(cert.cert)}</h4>
+                            </div>`;
+                    });
+                }
+
                 const previewContent = `
                     <div class="text-center">
                         <h1 class="text-3xl font-bold">${s(data.name)}</h1>
@@ -708,6 +741,10 @@
                         <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Education</h3>
                         ${educationHTML || '<p class="text-sm mt-2 text-gray-500">No education data available.</p>'}
                     </div>
+                    <div class="mt-6">
+                        <h3 class="text-xl font-bold border-b-2 border-gray-300 pb-1">Professional Certificates</h3>
+                        ${certHTML || '<p class="text-sm mt-2 text-gray-500">No certificate data available.</p>'}
+                    </div>
                 `;
                 const scoreSection = document.getElementById('score-section');
                 resumePreviewContainer.innerHTML = '';
@@ -726,7 +763,10 @@
                 try {
                     const response = await fetch(`${API_BASE_URL}/export-pdf`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                                'Content-Type': 'application/json' ,
+                                //'X-CSRFToken': getCsrfToken()
+                                    },
                         body: JSON.stringify(resumeData)
                     });
                     if (!response.ok) throw new Error(`PDF generation failed with status: ${response.status}`);
@@ -819,5 +859,62 @@
         });
         
     </script>
+    <script>
+    const API_BASE_URL = 'http://192.168.50.218:5031'; // Make sure this matches your backend IP
+    const authContainer = document.getElementById('auth-container');
+
+    // // Function to get the CSRF token from the cookie
+    // function getCsrfToken() {
+    //     const csrfCookie = document.cookie.match(/csrftoken=([^;]+)/);
+    //     return csrfCookie ? csrfCookie[1] : '';
+    // }
+
+    async function handleLogout() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/logout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    //'X-CSRFToken': getCsrfToken() // Include CSRF token for logout
+                }
+            });
+            if (response.ok) {
+                window.location.href = '/login.html';
+            } else {
+                alert('Logout failed. Please try again.');
+            }
+        } catch (error) {
+            console.error('Logout error:', error);
+            alert('An error occurred during logout.');
+        }
+    }
+
+    // Function to check authentication status when the page loads
+    async function checkAuth() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/status`);
+            const data = await response.json();
+
+            if (data.logged_in) {
+                // User is logged in, display their name and a logout button
+                authContainer.innerHTML = `
+                    <span class="text-gray-700 mr-4">Welcome, ${data.user.username}</span>
+                    <button id="logout-button" class="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600">Logout</button>
+                `;
+                document.getElementById('logout-button').addEventListener('click', handleLogout);
+            } else {
+                // User is not logged in, redirect to the login page
+                window.location.href = '/login.html';
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+            // If the API is down, we can't verify, so redirect to login as a failsafe
+            window.location.href = '/login.html';
+        }
+    }
+
+    // Run the authentication check when the page content has loaded
+    document.addEventListener('DOMContentLoaded', checkAuth);
+</script>
 </body>
 </html>

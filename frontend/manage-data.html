@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Your Data</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/fuzzysort@2.0.14/dist/fuzzysort.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
@@ -18,7 +19,13 @@
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
-
+    <header class="bg-white shadow-md">
+    <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
+        <a class="text-xl font-bold text-gray-800" href="/index.html">AI Resume Builder</a>
+        <div id="auth-container" class="flex items-center">
+            </div>
+    </nav>
+        </header>
     <div class="container mx-auto p-4 lg:p-8">
         <header class="text-center mb-8">
             <h1 class="text-3xl font-bold text-gray-900">Manage Your Data</h1>
@@ -100,6 +107,16 @@
                 </ul>
             </div>
 
+            <div id="cert-section" class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">Certifications</h2>
+                <div class="space-y-3 mb-4">
+                    <input type="text" id="cert-degree-input" placeholder="Professional Certifications" class="block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <button id="add-cert-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors">Add</button>
+                </div>
+                <ul id="cert-list" class="space-y-2">
+                </ul>
+            </div>
+
             <div id="projects-section" class="bg-white p-6 rounded-lg shadow-md">
                 <h2 class="text-2xl font-bold mb-4">Technical Projects</h2>
                 <div class="space-y-3 mb-4">
@@ -146,6 +163,10 @@
             const educationInstitutionInput = document.getElementById('education-institution-input');
             const addEducationBtn = document.getElementById('add-education-btn');
             const educationList = document.getElementById('education-list');
+            
+            const certInput = document.getElementById('cert-degree-input');
+            const addCertBtn = document.getElementById('add-cert-btn');
+            const certList = document.getElementById('cert-list');
 
             const projectNameInput = document.getElementById('project-name-input');
             const projectDescriptionInput = document.getElementById('project-description-input');
@@ -153,6 +174,10 @@
             const addProjectBtn = document.getElementById('add-project-btn');
             const projectsList = document.getElementById('projects-list');
 
+            // function getCsrfToken() {
+            //    const csrfCookie = document.cookie.match(/csrftoken=([^;]+)/);
+            //     return csrfCookie ? csrfCookie[1] : '';
+            //         }
 
             async function loadPersonalDetails() {
                 try {
@@ -189,7 +214,10 @@
                 try {
                     const response = await fetch(API_URL_RESUME, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                                   'Content-Type': 'application/json',
+   //                                'X-CSRFToken': getCsrfToken()
+                                    },
                         body: JSON.stringify(data),
                     });
                     if (!response.ok) throw new Error('Failed to save details');
@@ -250,6 +278,16 @@
                 `;
             }
 
+            function renderCert(item) {
+                return `
+                    <div class="flex-grow pr-4">
+                        <p class="font-bold">${item.cert}</p>
+
+                    </div>
+                    <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 font-bold self-start">✖</button>
+                `;
+            }
+
             function renderProject(item) {
                 return `
                     <div class="flex-grow pr-4">
@@ -266,7 +304,10 @@
                 try {
                     const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                                   'Content-Type': 'application/json',
+ //                                  'X-CSRFToken': getCsrfToken() // <-- ADD THIS HEADER
+                                    },
                         body: JSON.stringify(body),
                     });
 
@@ -282,7 +323,65 @@
                     alert('An error occurred. Please check the console.');
                 }
             }
-            
+            async function checkAndAddSkill() {
+                const inputText = skillInput.value.trim();
+                if (!inputText) return alert("Please enter a skill.");
+
+                // Load existing skills (already fetched in initialLoad)
+                try {
+                    const response = await fetch(`${API_BASE_URL}/skills`);
+                    const skills = await response.json();
+
+                    // Use Fuzzysort to find close matches
+                    const results = fuzzysort.go(inputText, skills, { keys: ['skill_text'] });
+
+                    if (results.length > 0 && results[0].score > 27000) {
+                        const match = results[0]; // Closest match
+                        const oldText = match.obj.skill_text;
+                        const similarityScore = Math.round(match.score / 100 * 100);
+
+                        // Show modal dialog
+                        const confirmed = confirm(`
+                            🔍 A similar skill already exists:
+                            
+                            ❌ Old: "${oldText}"
+                            ✅ New: "${inputText}"
+                            
+                            Similarity: ${similarityScore}%
+                            
+                            What would you like to do?
+                            
+                            [Cancel] → Cancel adding this skill
+                            [Replace] → Replace the old one with the new one
+                            [Add New] → Add it anyway (as a duplicate)
+                        `);
+
+                        if (!confirmed) return; // Cancel
+
+                        if (confirm("Replace the existing skill?")) {
+                            // DELETE old, ADD new
+                            await fetch(`${API_BASE_URL}/skills/${match.obj.id}`, { method: 'DELETE' });
+                            const body = { skill_text: inputText };
+                            addItem('skills', skillInput, body, skillsList, 'skill_text');
+                        } else {
+                            // Add as duplicate
+                            const body = { skill_text: inputText };
+                            addItem('skills', skillInput, body, skillsList, 'skill_text');
+                        }
+                    } else {
+                        // No match → add safely
+                        const body = { skill_text: inputText };
+                        addItem('skills', skillInput, body, skillsList, 'skill_text');
+                    }
+
+                } catch (error) {
+                    console.error("Error checking duplicates:", error);
+                    alert("Could not check for duplicates. Adding anyway.");
+                    const body = { skill_text: inputText };
+                    addItem('skills', skillInput, body, skillsList, 'skill_text');
+                }
+            }
+
             function addWorkExperience() {
                 const body = {
                     job_title: workJobTitleInput.value,
@@ -307,6 +406,14 @@
                 addItem('education', null, body, educationList, null, renderEducation);
                 educationDegreeInput.value = '';
                 educationInstitutionInput.value = '';
+            }
+
+            function addCert() {
+                const body = {
+                    degree: certInput.value,
+                };
+                addItem('cert', null, body, certList, null, renderCert);
+                certInput.value = '';
             }
 
             function addProject() {
@@ -337,7 +444,9 @@
             addSummaryBtn.addEventListener('click', () => addItem('professional_summaries', summaryInput, { summary_text: summaryInput.value }, summariesList, 'summary_text'));
             addWorkExperienceBtn.addEventListener('click', addWorkExperience);
             addEducationBtn.addEventListener('click', addEducation);
+            addCertBtn.addEventListener('click', addCert);
             addProjectBtn.addEventListener('click', addProject);
+            addSkillBtn.addEventListener('click', checkAndAddSkill);
 
             // Use event delegation for delete buttons
             document.body.addEventListener('click', (event) => {
@@ -350,6 +459,8 @@
                         deleteItem('work_experience', id, workExperienceList, null, renderWorkExperience);
                     } else if (list.id === 'education-list') {
                         deleteItem('education', id, educationList, null, renderEducation);
+                    } else if (list.id === 'cert-list') {
+                        deleteItem('cert', id, educationList, null, renderCert);
                     } else if (list.id === 'projects-list') {
                         deleteItem('technical_projects', id, projectsList, null, renderProject);
                     }
@@ -362,10 +473,68 @@
                 loadAndRenderItems('professional_summaries', summariesList, 'summary_text');
                 loadAndRenderItems('work_experience', workExperienceList, null, renderWorkExperience);
                 loadAndRenderItems('education', educationList, null, renderEducation);
+                loadAndRenderItems('cert', certList, null, renderCert);
                 loadAndRenderItems('technical_projects', projectsList, null, renderProject);
             }
             initialLoad();
         });
     </script>
+    <script>
+   // const API_BASE_URL = 'http://192.168.50.218:5031'; // Make sure this matches your backend IP
+    //const authContainer = document.getElementById('auth-container');
+
+    // Function to get the CSRF token from the cookie
+    // function getCsrfToken() {
+    //     const csrfCookie = document.cookie.match(/csrftoken=([^;]+)/);
+    //     return csrfCookie ? csrfCookie[1] : '';
+    // }
+
+    //async function handleLogout() {
+      //  try {
+        //    const response = await fetch(`${API_BASE_URL}/api/logout`, {
+          //      method: 'POST',
+            //    headers: {
+              //      'Content-Type': 'application/json',
+                //    'X-CSRFToken': getCsrfToken() // Include CSRF token for logout
+              //  }
+         //   });
+           // if (response.ok) {
+             //   window.location.href = '/login.html';
+           // } else {
+             //   alert('Logout failed. Please try again.');
+            //}
+       // } catch (error) {
+         //   console.error('Logout error:', error);
+           // alert('An error occurred during logout.');
+      //  }
+    //}
+
+    // Function to check authentication status when the page loads
+    //async function checkAuth() {
+      //  try {
+        //    const response = await fetch(`${API_BASE_URL}/api/status`);
+          //  const data = await response.json();
+
+           // if (data.logged_in) {
+                // User is logged in, display their name and a logout button
+             //   authContainer.innerHTML = `
+          //          <span class="text-gray-700 mr-4">Welcome, ${data.user.username}</span>
+           //         <button id="logout-button" class="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600">Logout</button>
+             //   `;
+               // document.getElementById('logout-button').addEventListener('click', handleLogout);
+           // } else {
+                // User is not logged in, redirect to the login page
+             //   window.location.href = '/login.html';
+          //  }
+       // } catch (error) {
+         //   console.error('Auth check error:', error);
+            // If the API is down, we can't verify, so redirect to login as a failsafe
+           // window.location.href = '/login.html';
+       // }
+    //}
+
+    // Run the authentication check when the page content has loaded
+  //  document.addEventListener('DOMContentLoaded', checkAuth);
+</script>
 </body>
 </html>

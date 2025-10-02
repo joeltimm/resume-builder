@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.4.0/justgage.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        @keyframes flash {
+            0% { background-color: #4f46e5; }
+            100% { background-color: #16a34a; }
+        }
+        .flash-success { animation: flash 0.5s ease-out; }
+        .preview-content { word-wrap: break-word; overflow-wrap: break-word; }
+        /* Style for filter buttons */
+        .filter-btn { transition: all 0.2s ease-in-out; }
+        .filter-btn.active { background-color: #4f46e5; color: white; }
+        /* Style for the gauge */
+        #score-gauge {
+            width: 200px;
+            height: 160px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto mt-10 max-w-md">
+        <div class="bg-white p-8 rounded-lg shadow-lg">
+            <h1 class="text-2xl font-bold mb-6 text-center">Create an Account</h1>
+            <form id="register-form" method="post">
+                <div class="mb-4">
+                    <label for="username" class="block text-gray-700">Username</label>
+                    <input type="text" id="username" name="username" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-gray-700">Password</label>
+                    <input type="password" id="password" name="password" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div>
+                <button type="submit" class="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition-colors">Register</button>
+                </div>
+            </form>
+             <p class="text-center mt-4">
+                Already have an account? <a href="/login.html" class="text-blue-500 hover:underline">Login here</a>
+            </p>
+            <div id="message" class="mt-4 text-center"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://192.168.50.218:5031'; // Make sure this matches your backend IP
+
+        // Function to get the CSRF token from the cookie
+        // function getCsrfToken() {
+        //     const csrfCookie = document.cookie.match(/csrftoken=([^;]+)/);
+        //     return csrfCookie ? csrfCookie[1] : '';
+        // }
+
+        document.getElementById('register-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const username = this.username.value;
+            const password = this.password.value;
+            const messageDiv = document.getElementById('message');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                     //   'X-CSRFToken': getCsrfToken() // Include CSRF token
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    messageDiv.textContent = 'Registration successful! Redirecting to login...';
+                    messageDiv.className = 'mt-4 text-green-500 text-center';
+                    setTimeout(() => {
+                        window.location.href = '/login.html';
+                    }, 2000);
+                } else {
+                    messageDiv.textContent = data.error || 'An unknown error occurred.';
+                     messageDiv.className = 'mt-4 text-red-500 text-center';
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                messageDiv.textContent = 'Failed to connect to the server.';
+                messageDiv.className = 'mt-4 text-red-500 text-center';
+            }
+        });
+    </script>
+</body>
+</html>

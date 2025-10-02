@@ -16,3 +16,7 @@ Flask-Cors
 bleach
 gunicorn
 typing
+Flask-Limiter
+Flask-WTF
+Flask-Login
+Werkzeug
